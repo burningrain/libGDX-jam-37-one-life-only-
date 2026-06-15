@@ -65,7 +65,8 @@ public class Main implements ApplicationListener {
 
         // 1. Создаем паутину
         Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
-        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8);
+        // FIXME если не 1, то жук застревает на сочленениях
+        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 1);
 
         // 2. Инициализируем FrameBuffer
         fbo = new FrameBuffer(Pixmap.Format.RGBA8888, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, false);
