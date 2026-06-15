@@ -65,8 +65,7 @@ public class Main implements ApplicationListener {
 
         // 1. Создаем паутину
         Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
-        // FIXME если не 1, то жук застревает на сочленениях
-        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 5);
+        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 3);
 
         // 2. Инициализируем FrameBuffer
         fbo = new FrameBuffer(Pixmap.Format.RGBA8888, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, false);
@@ -137,7 +136,7 @@ public class Main implements ApplicationListener {
         // ====================================================
 
         // Симуляция ветра (применяем силы до шага физики)
-        float windForce = (float) Math.sin(time * 0.5f) * 0.4f;
+        float windForce = (float) Math.sin(time * 2.5f) * 1.4f;
         spiderWeb.applyWind(windForce, 0);
 
         // Запускаем Artemis ECS (включая PlayerInputSystem, которая считает скорость,
@@ -182,18 +181,18 @@ public class Main implements ApplicationListener {
         camera.update();
         spriteBatch.setProjectionMatrix(camera.combined);
 
-//        spriteBatch.begin();
-//        spriteBatch.draw(
-//            fbo.getColorBufferTexture(),
-//            0, 0,
-//            viewport.getWorldWidth(), viewport.getWorldHeight(),
-//            0, 0,
-//            fbo.getWidth(), fbo.getHeight(),
-//            false, true // Переворачиваем текстуру FBO по вертикали
-//        );
-//        spriteBatch.end();
+        spriteBatch.begin();
+        spriteBatch.draw(
+            fbo.getColorBufferTexture(),
+            0, 0,
+            viewport.getWorldWidth(), viewport.getWorldHeight(),
+            0, 0,
+            fbo.getWidth(), fbo.getHeight(),
+            false, true // Переворачиваем текстуру FBO по вертикали
+        );
+        spriteBatch.end();
 
-        debugRenderer.render(world, camera.combined);
+        //debugRenderer.render(world, camera.combined);
     }
 
     @Override

@@ -57,7 +57,7 @@ public class SpiderWeb {
         edgeAnchors.add(centerAnchorBody); // Очистим при dispose
 
         // ====================================================
-        // ШАГ 1: ГЕНЕРИРУЕМ РАДИАЛЬНЫЕ ЛУЧИ (Идут из центра наружу)
+        // ШАГ 1: ГЕНЕРИРУЕМ РАДИАЛЬНЫЕ ЛУЧИ (С подсегментами между кольцами)
         // ====================================================
         for (int i = 0; i < raysCount; i++) {
             float angle = i * angleStep;
@@ -66,56 +66,77 @@ public class SpiderWeb {
             float dirX = (float) Math.cos(angle);
             float dirY = (float) Math.sin(angle);
 
+            // Храним самый последний созданный сегмент на ЭТОМ луче для связывания в цепочку
+            Body previousSegmentInRay = null;
+
             for (int j = 0; j < ringsCount; j++) {
                 float rStart = j * radiusStep;
                 float rEnd = (j + 1) * radiusStep;
 
-                posA.set(center.x + dirX * rStart, center.y + dirY * rStart);
-                posB.set(center.x + dirX * rEnd, center.y + dirY * rEnd);
+                // Считаем длину шага для каждого подсегмента внутри текущего пролета
+                float subSegmentLength = (rEnd - rStart) / ringSubSegmentsCount;
 
-                Body segment = createSegment(posA, posB);
-                allSegments.add(segment);
-                rayMatrix[i][j] = segment;
+                for (int k = 0; k < ringSubSegmentsCount; k++) {
+                    // Вычисляем точные координаты начала и конца текущего подсегмента
+                    float currentRStart = rStart + k * subSegmentLength;
+                    float currentREnd = rStart + (k + 1) * subSegmentLength;
 
-                // КРЕПИМ НАЧАЛО ЛУЧА К СТАТИЧНОМУ ЦЕНТРУ (Решает проблему разваленного центра)
-                if (j == 0) {
-                    radialStartSegments.add(segment);
+                    posA.set(center.x + dirX * currentRStart, center.y + dirY * currentRStart);
+                    posB.set(center.x + dirX * currentREnd, center.y + dirY * currentREnd);
 
-                    DistanceJointDef centerJoint = new DistanceJointDef();
-                    centerJoint.initialize(centerAnchorBody, segment, center, center);
-                    centerJoint.collideConnected = false;
-                    centerJoint.frequencyHz = 25.0f;   // Удерживаем геометрию центра жестко
-                    centerJoint.dampingRatio = 1.0f;  // Без дребезга и вибраций у основания
-                    world.createJoint(centerJoint);
-                }
+                    Body segment = createSegment(posA, posB);
+                    allSegments.add(segment);
 
-                // ТОЧКА Б: Сшиваем сегменты одного луча последовательно «паровозиком»
-                if (j > 0) {
-                    DistanceJointDef jointDef = new DistanceJointDef();
-                    jointDef.initialize(rayMatrix[i][j - 1], segment, posA, posA);
-                    jointDef.collideConnected = false;
+                    // Если вам все еще нужна матрица для спиралей (ШАГ 2),
+                    // сохраняем в нее КРАЙНИЙ сегмент у кольца (где k == ringSubSegmentsCount - 1)
+                    if (k == ringSubSegmentsCount - 1) {
+                        rayMatrix[i][j] = segment;
+                    }
 
-                    // Параметры для плавного извивания луча без высокочастотной дрожи
-                    jointDef.frequencyHz = 4.5f;     // Даем свободу плавно изгибаться по дуге
-                    jointDef.dampingRatio = 0.85f;   // Высокое затухание убирает мелкую тряску палочек
-                    world.createJoint(jointDef);
-                }
+                    // КРЕПИМ НАЧАЛО САМОГО ПЕРВОГО ПОДСЕГМЕНТА К ЦЕНТРУ
+                    if (j == 0 && k == 0) {
+                        radialStartSegments.add(segment);
 
-                // ТОЧКА А: Фиксация самого внешнего края паутины к статичным невидимым опорам экрана
-                if (j == ringsCount - 1) {
-                    BodyDef anchorDef = new BodyDef();
-                    anchorDef.type = BodyDef.BodyType.StaticBody;
-                    anchorDef.position.set(posB);
-                    Body anchor = world.createBody(anchorDef);
-                    edgeAnchors.add(anchor);
+                        DistanceJointDef centerJoint = new DistanceJointDef();
+                        centerJoint.initialize(centerAnchorBody, segment, center, center);
+                        centerJoint.collideConnected = false;
+                        centerJoint.frequencyHz = 25.0f;   // Удерживаем геометрию центра жестко
+                        centerJoint.dampingRatio = 1.0f;   // Без дребезга и вибраций у основания
+                        world.createJoint(centerJoint);
+                    }
 
-                    DistanceJointDef edgeJoint = new DistanceJointDef();
-                    edgeJoint.initialize(segment, anchor, posB, posB);
-                    edgeJoint.collideConnected = false;
+                    // СШИВАЕМ ПОДСЕГМЕНТЫ ПОСЛЕДОВАТЕЛЬНО (внутри кольца и между кольцами)
+                    if (previousSegmentInRay != null) {
+                        DistanceJointDef jointDef = new DistanceJointDef();
+                        // Соединяем в точке posA (начало текущего подсегмента)
+                        jointDef.initialize(previousSegmentInRay, segment, posA, posA);
+                        jointDef.collideConnected = false;
 
-                    edgeJoint.frequencyHz = 20.0f;   // Внешний каркас держим прочно
-                    edgeJoint.dampingRatio = 1.0f;    // Поглощаем импульсы на границах
-                    world.createJoint(edgeJoint);
+                        // Параметры упругости нити
+                        jointDef.frequencyHz = 4.5f;
+                        jointDef.dampingRatio = 0.85f;
+                        world.createJoint(jointDef);
+                    }
+
+                    // ФИКСАЦИЯ КОНЦА САМОГО ПОСЛЕДНЕГО ПОДСЕГМЕНТА К ОПОРЕ НА КРАЮ
+                    if (j == ringsCount - 1 && k == ringSubSegmentsCount - 1) {
+                        BodyDef anchorDef = new BodyDef();
+                        anchorDef.type = BodyDef.BodyType.StaticBody;
+                        anchorDef.position.set(posB);
+                        Body anchor = world.createBody(anchorDef);
+                        edgeAnchors.add(anchor);
+
+                        DistanceJointDef edgeJoint = new DistanceJointDef();
+                        edgeJoint.initialize(segment, anchor, posB, posB);
+                        edgeJoint.collideConnected = false;
+
+                        edgeJoint.frequencyHz = 20.0f;   // Внешний каркас держим прочно
+                        edgeJoint.dampingRatio = 1.0f;    // Поглощаем импульсы на границах
+                        world.createJoint(edgeJoint);
+                    }
+
+                    // Запоминаем текущий сегмент, чтобы следующий привязался к нему
+                    previousSegmentInRay = segment;
                 }
             }
         }
@@ -239,7 +260,7 @@ public class SpiderWeb {
      */
     public void applyWind(float forceX, float forceY) {
         // 1. Ослабляем входящую силу (например, в 4 раза), чтобы не было резких рывков
-        float reducedX = forceX * 0.05f; // Было 0.25f
+        float reducedX = forceX * 0.025f; // Было 0.25f
         float reducedY = forceY * 0.05f;
 
         for (Body segment : allSegments) {
