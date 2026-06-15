@@ -61,7 +61,7 @@ public class PlayerInputSystem extends IteratingSystem {
         // ====================================================
         // 2. СМЕНА РЕЛЬС НА ПЕРЕКРЕСТКЕ
         // ====================================================
-        if (player.activeContacts.size > 1 && inputDirection.len2() > 0) {
+        if (player.activeContacts.size >= 1 && inputDirection.len2() > 0) {
             Body bestNextBody = null;
             float bestMatch = -1f;
 

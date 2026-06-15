@@ -66,7 +66,7 @@ public class Main implements ApplicationListener {
         // 1. Создаем паутину
         Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
         // FIXME если не 1, то жук застревает на сочленениях
-        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 1);
+        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 5);
 
         // 2. Инициализируем FrameBuffer
         fbo = new FrameBuffer(Pixmap.Format.RGBA8888, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, false);
@@ -99,10 +99,10 @@ public class Main implements ApplicationListener {
         playerBody = world.createBody(pDef);
 
         CircleShape playerShape = new CircleShape();
-        playerShape.setRadius(0.3f);
+        playerShape.setRadius(0.25f);
         FixtureDef pFixture = new FixtureDef();
         pFixture.shape = playerShape;
-        pFixture.density = 0.001f; // Легкий как пушинка
+        pFixture.density = 0.5f; // Легкий как пушинка
         pFixture.filter.groupIndex = -1; // Отключаем коллизии со звеньями
         pFixture.isSensor = true;
         playerBody.createFixture(pFixture);
@@ -137,7 +137,7 @@ public class Main implements ApplicationListener {
         // ====================================================
 
         // Симуляция ветра (применяем силы до шага физики)
-        float windForce = (float) Math.sin(time * 3.5f) * 2.0f;
+        float windForce = (float) Math.sin(time * 0.5f) * 0.4f;
         spiderWeb.applyWind(windForce, 0);
 
         // Запускаем Artemis ECS (включая PlayerInputSystem, которая считает скорость,
