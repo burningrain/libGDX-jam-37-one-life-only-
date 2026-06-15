@@ -65,7 +65,7 @@ public class Main implements ApplicationListener {
 
         // 1. Создаем паутину
         Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
-        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 3);
+        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 2);
 
         // 2. Инициализируем FrameBuffer
         fbo = new FrameBuffer(Pixmap.Format.RGBA8888, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, false);
@@ -136,7 +136,7 @@ public class Main implements ApplicationListener {
         // ====================================================
 
         // Симуляция ветра (применяем силы до шага физики)
-        float windForce = (float) Math.sin(time * 2.5f) * 1.4f;
+        float windForce = (float) Math.sin(time * 2.5f) * 1.4f; // float windForce = (float) Math.sin(time * 4.5f) * 3.4f;
         spiderWeb.applyWind(windForce, 0);
 
         // Запускаем Artemis ECS (включая PlayerInputSystem, которая считает скорость,

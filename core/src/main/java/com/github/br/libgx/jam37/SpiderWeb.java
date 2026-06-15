@@ -50,10 +50,21 @@ public class SpiderWeb {
         Body[][] rayMatrix = new Body[raysCount][ringsCount];
 
         // ШАГ А: Создаем скрытый монолитный центр паутины, чтобы он не шатался и не разваливался
-        BodyDef centerAnchorDef = new BodyDef();
-        centerAnchorDef.type = BodyDef.BodyType.StaticBody;
-        centerAnchorDef.position.set(center);
-        Body centerAnchorBody = world.createBody(centerAnchorDef);
+        BodyDef centerDef = new BodyDef();
+        centerDef.type = BodyDef.BodyType.DynamicBody; // ИЗМЕНЕНО: теперь центр может двигаться!
+        centerDef.position.set(center);
+        centerDef.linearDamping = 1.0f; // Гасим лишнюю болтанку центра
+
+        Body centerAnchorBody = world.createBody(centerDef);
+
+// Обязательно даем центру физическую форму и массу, чтобы суставы работали корректно
+        CircleShape centerShape = new CircleShape();
+        centerShape.setRadius(0.2f); // Маленькая точка-центр
+        FixtureDef fixtureDef = new FixtureDef();
+        fixtureDef.shape = centerShape;
+        fixtureDef.density = 0.2f;   // Вес центральной точки паутины
+        centerAnchorBody.createFixture(fixtureDef);
+        centerShape.dispose();
         edgeAnchors.add(centerAnchorBody); // Очистим при dispose
 
         // ====================================================
