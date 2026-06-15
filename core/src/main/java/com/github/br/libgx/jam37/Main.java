@@ -1,5 +1,6 @@
 package com.github.br.libgx.jam37;
 
+import com.artemis.managers.TagManager;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
@@ -10,12 +11,11 @@ import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
-import com.badlogic.gdx.physics.box2d.joints.WeldJoint;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.PlayerComponent;
+import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 import com.github.br.libgx.jam37.systems.PhysicsSystem;
 import com.github.br.libgx.jam37.systems.PlayerInputSystem;
 
@@ -74,12 +74,26 @@ public class Main implements ApplicationListener {
             com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest
         );
 
-        // 3. СОЗДАЕМ ФИЗИЧЕСКОЕ ТЕЛО ЖУКА (ТЕПЕРЬ КИНЕМАТИЧЕСКОЕ)
+        com.artemis.WorldConfiguration config = new com.artemis.WorldConfigurationBuilder()
+            .with(new TagManager())
+            .with(new PlayerInputSystem())
+            .with(new PhysicsSystem(world))
+            .with(new WebContactListener())
+            .build();
+        artemisWorld = new com.artemis.World(config);
+
+
+        // ====================================================
+        // 5. СОЗДАЕМ СУЩНОСТЬ ИГРОКА В ECS
+        // ====================================================
+        createPlayer();
+    }
+
+    private void createPlayer() {
         BodyDef pDef = new BodyDef();
         pDef.type = BodyDef.BodyType.DynamicBody; // Честное динамическое тело
 
-        SpiderWebRope startRayRope = spiderWeb.getRadialRopes().first();
-        Body startSegmentBody = startRayRope.getSegments().get(3);
+        Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
         pDef.position.set(startSegmentBody.getPosition());
         playerBody = world.createBody(pDef);
 
@@ -93,16 +107,6 @@ public class Main implements ApplicationListener {
         playerBody.createFixture(pFixture);
         playerShape.dispose();
 
-        com.artemis.WorldConfiguration config = new com.artemis.WorldConfigurationBuilder()
-            .with(new PlayerInputSystem(world, spiderWeb)) // Передаем world и spiderWeb
-            .with(new PhysicsSystem(world))
-            .build();
-        artemisWorld = new com.artemis.World(config);
-
-
-        // ====================================================
-        // 5. СОЗДАЕМ СУЩНОСТЬ ИГРОКА В ECS
-        // ====================================================
         int entityId = artemisWorld.create();
         PlayerComponent playerComp = artemisWorld.getMapper(PlayerComponent.class).create(entityId);
         PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
@@ -112,6 +116,14 @@ public class Main implements ApplicationListener {
 
         // НАМЕРТВО ЗАПИСЫВАЕМ СТАРТОВОЕ ТЕЛО В КОМПОНЕНТ (Жук поймет, на каких он рельсах!)
         playerComp.currentSegmentBody = startSegmentBody;
+        playerComp.entityId = entityId;
+
+        // Создаем стартовое намерение, чтобы PhysicsSystem сама собрала первый сустав
+        PrismaticRebindIntent startIntent = artemisWorld.getMapper(PrismaticRebindIntent.class).create(entityId);
+        startIntent.bodyToBind = playerBody;
+        startIntent.targetSegmentBody = startSegmentBody;
+
+        artemisWorld.getSystem(TagManager.class).register("PLAYER", entityId);
     }
 
     @Override
@@ -154,23 +166,6 @@ public class Main implements ApplicationListener {
         Vector2 pPos = playerBody.getPosition();
         shapeRenderer.circle(pPos.x, pPos.y, 0.3f, 8);
 
-        // ====================================================
-        // ВАЖНО: ОТРИСОВКА ВИЗУАЛЬНОГО МАРКЕРА ЦЕЛИ
-        // ====================================================
-        // 1. Достаем нашу систему ввода из мира Artemis
-        PlayerInputSystem inputSystem = artemisWorld.getSystem(PlayerInputSystem.class);
-        if (inputSystem != null) {
-            Vector2 markerPos = inputSystem.getTargetPosition();
-
-            // Задаем маркеру яркий цвет (например, ядовито-зеленый или красный)
-            shapeRenderer.setColor(0.2f, 1.0f, 0.2f, 1f);
-
-            // Рисуем маркер как крошечный пиксельный квадратик радиусом 5 сантиметров
-            // В пиксельном FBO 960x540 это превратится в аккуратную резкую точку
-            shapeRenderer.rect(markerPos.x - 0.05f, markerPos.y - 0.05f, 0.1f, 0.1f);
-        }
-
-
         shapeRenderer.end();
 
         fbo.end();
@@ -186,19 +181,17 @@ public class Main implements ApplicationListener {
         camera.update();
         spriteBatch.setProjectionMatrix(camera.combined);
 
-        spriteBatch.begin();
-        spriteBatch.draw(
-            fbo.getColorBufferTexture(),
-            0, 0,
-            viewport.getWorldWidth(), viewport.getWorldHeight(),
-            0, 0,
-            fbo.getWidth(), fbo.getHeight(),
-            false, true // Переворачиваем текстуру FBO по вертикали
-        );
-        spriteBatch.end();
+//        spriteBatch.begin();
+//        spriteBatch.draw(
+//            fbo.getColorBufferTexture(),
+//            0, 0,
+//            viewport.getWorldWidth(), viewport.getWorldHeight(),
+//            0, 0,
+//            fbo.getWidth(), fbo.getHeight(),
+//            false, true // Переворачиваем текстуру FBO по вертикали
+//        );
+//        spriteBatch.end();
 
-        // ВНИМАНИЕ: Строчку дебаггера ОБЯЗАТЕЛЬНО закомментируем!
-        // Она создавала второго зеленого жука-призрака и ломала субпиксельное сглаживание.
         debugRenderer.render(world, camera.combined);
     }
 
@@ -223,5 +216,6 @@ public class Main implements ApplicationListener {
         spriteBatch.dispose();
         fbo.dispose();
     }
+
 }
 

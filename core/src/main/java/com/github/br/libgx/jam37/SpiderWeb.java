@@ -1,197 +1,175 @@
 package com.github.br.libgx.jam37;
 
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
-import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class SpiderWeb {
 
-    private static final int RAY_SEGMENTS = 8;
-
-    private final Array<SpiderWebRope> radialRopes = new Array<>();
-    private final Array<SpiderWebRope> spiralRopes = new Array<>();
-    private final Array<Body> edgeAnchors = new Array<>();
-    private final Body webCenterBody;
     private final World world;
+    private final Vector2 center;
 
-    public SpiderWeb(World world, Vector2 center, float radius, int numRays, int numRings) {
+    // Хранилище всех сегментов паутины (нитей) для рендеринга и логики
+    private final Array<Body> allSegments = new Array<>();
+
+    // Отдельный список радиальных лучей, чтобы Main мог при старте найти за что зацепить жука
+    private final Array<Body> radialStartSegments = new Array<>();
+
+    /**
+     * Конструктор генератора правильной паутины
+     * @param world Физический мир Box2D
+     * @param center Центр паутины (мировые координаты)
+     * @param maxRadius Насколько далеко раскинется паутина
+     * @param raysCount Количество радиальных лучей (осей, идущих от центра)
+     * @param ringsCount Количество концентрических колец (витков спирали)
+     */
+    public SpiderWeb(World world, Vector2 center, float maxRadius, int raysCount, int ringsCount) {
         this.world = world;
+        this.center = center;
 
-        // 1. Создаем один центральный узел паутины (плавающий)
-        BodyDef centerDef = new BodyDef();
-        centerDef.type = BodyDef.BodyType.DynamicBody;
-        centerDef.position.set(center);
-        centerDef.linearDamping = 8.0f;
-        centerDef.angularDamping = 8.0f;
-        this.webCenterBody = world.createBody(centerDef);
+        generateWeb(maxRadius, raysCount, ringsCount);
+    }
 
-        CircleShape centerShape = new CircleShape();
-        centerShape.setRadius(0.1f);
-        FixtureDef centerFixture = new FixtureDef();
-        centerFixture.shape = centerShape;
-        centerFixture.density = 5.0f;
-        webCenterBody.createFixture(centerFixture);
-        centerShape.dispose();
+    private void generateWeb(float maxRadius, int raysCount, int ringsCount) {
+        float angleStep = (float) (Math.PI * 2 / raysCount);
+        float radiusStep = maxRadius / ringsCount;
 
-        // 2. Генерируем все продольные нити (радиальные лучи)
-        for (int i = 0; i < numRays; i++) {
-            float angle = (i * 360f / numRays) * MathUtils.degreesToRadians;
+        // Временные векторы для расчетов, чтобы не спамить GC в цикле
+        Vector2 posA = new Vector2();
+        Vector2 posB = new Vector2();
 
-            float endX = center.x + MathUtils.cos(angle) * radius;
-            float endY = center.y + MathUtils.sin(angle) * radius;
-            Vector2 endPoint = new Vector2(endX, endY);
+        // ====================================================
+        // ШАГ 1: ГЕНЕРИРУЕМ РАДИАЛЬНЫЕ ЛУЧИ (Идут из центра наружу)
+        // ====================================================
+        for (int i = 0; i < raysCount; i++) {
+            float angle = i * angleStep;
 
-            SpiderWebRope ray = new SpiderWebRope(world, center, endPoint, RAY_SEGMENTS, 0.04f);
-            radialRopes.add(ray);
+            // Направление луча
+            float dirX = (float) Math.cos(angle);
+            float dirY = (float) Math.sin(angle);
 
-            // Прописываем WebSegmentData для каждого сегмента продольного луча
-            for (int j = 0; j < ray.getSegments().size; j++) {
-                Body b = ray.getSegments().get(j);
-                b.setUserData(new WebSegmentData(true, i, j)); // true = луч, i = индекс луча, j = индекс кольца
-            }
+            for (int j = 0; j < ringsCount; j++) {
+                float rStart = j * radiusStep;
+                float rEnd = (j + 1) * radiusStep;
 
-            // Шарнир начала луча к плавающему центру паутины
-            RevoluteJointDef centerJoint = new RevoluteJointDef();
-            centerJoint.initialize(webCenterBody, ray.getSegments().first(), center);
-            centerJoint.collideConnected = false;
-            world.createJoint(centerJoint);
+                posA.set(center.x + dirX * rStart, center.y + dirY * rStart);
+                posB.set(center.x + dirX * rEnd,   center.y + dirY * rEnd);
 
-            // Статичный якорь дерева на внешнем краю экрана
-            BodyDef anchorDef = new BodyDef();
-            anchorDef.type = BodyDef.BodyType.StaticBody;
-            anchorDef.position.set(endPoint);
-            Body edgeAnchor = world.createBody(anchorDef);
-            edgeAnchors.add(edgeAnchor);
+                Body segment = createSegment(posA, posB);
+                allSegments.add(segment);
 
-            // Шарнир конца луча к дереву
-            RevoluteJointDef edgeJoint = new RevoluteJointDef();
-            edgeJoint.initialize(edgeAnchor, ray.getSegments().peek(), endPoint);
-            edgeJoint.collideConnected = false;
-            world.createJoint(edgeJoint);
-        }
-
-        // --- ПРОШИВКА ГРАФА ДЛЯ ПРОДОЛЬНЫХ НИТЕЙ ---
-        // Шаг А: Последовательно связываем сегменты внутри каждого луча от центра к краю
-        for (SpiderWebRope ray : radialRopes) {
-            for (int j = 0; j < ray.getSegments().size - 1; j++) {
-                link(ray.getSegments().get(j), ray.getSegments().get(j + 1));
+                // Сохраняем самые первые внутренние сегменты лучей, чтобы Main.java мог привязать жука
+                if (j == 0) {
+                    radialStartSegments.add(segment);
+                }
             }
         }
 
-        // Шаг Б: Связываем противоположные лучи через центр для сквозного прохода
-        for (int i = 0; i < numRays; i++) {
-            Body rayStartA = radialRopes.get(i).getSegments().first();
-            Body rayStartB = radialRopes.get((i + numRays / 2) % numRays).getSegments().first();
-            link(rayStartA, rayStartB);
-        }
+        // ====================================================
+        // ШАГ 2: ГЕНЕРИРУЕМ КОНЦЕНТРИЧЕСКИЕ КОЛЬЦА (Витковые нити)
+        // ====================================================
+        for (int j = 1; j <= ringsCount; j++) {
+            float currentRadius = j * radiusStep;
 
-        // 3. Генерируем все поперечные нити (соединяющие спиральные кольца)
-        for (int ring = 1; ring <= numRings; ring++) {
-            float ringRadius = radius * ((float) ring / numRings);
-            int raySegmentIdx = MathUtils.clamp((int)((float)ring / numRings * RAY_SEGMENTS) - 1, 0, RAY_SEGMENTS - 1);
+            for (int i = 0; i < raysCount; i++) {
+                float angleA = i * angleStep;
+                // Замыкаем кольцо: последний луч соединяем с самым первым (индекс 0)
+                float angleB = ((i + 1) % raysCount) * angleStep;
 
-            for (int rayIdx = 0; rayIdx < numRays; rayIdx++) {
-                float angle1 = (rayIdx * 360f / numRays) * MathUtils.degreesToRadians;
-                float angle2 = (((rayIdx + 1) % numRays) * 360f / numRays) * MathUtils.degreesToRadians;
+                posA.set(center.x + (float) Math.cos(angleA) * currentRadius, center.y + (float) Math.sin(angleA) * currentRadius);
+                posB.set(center.x + (float) Math.cos(angleB) * currentRadius, center.y + (float) Math.sin(angleB) * currentRadius);
 
-                Vector2 p1 = new Vector2(center.x + MathUtils.cos(angle1) * ringRadius, center.y + MathUtils.sin(angle1) * ringRadius);
-                Vector2 p2 = new Vector2(center.x + MathUtils.cos(angle2) * ringRadius, center.y + MathUtils.sin(angle2) * ringRadius);
-
-                // Создаем сектор кольца из 2 звеньев
-                SpiderWebRope ringSegment = new SpiderWebRope(world, p1, p2, 2, 0.03f);
-                spiralRopes.add(ringSegment);
-
-                // ПРОПИСЫВАЕМ USERDATA ДЛЯ ВСЕХ КОЛЬЦЕВЫХ СЕГМЕНТОВ
-                for (int j = 0; j < ringSegment.getSegments().size; j++) {
-                    Body b = ringSegment.getSegments().get(j);
-                    b.setUserData(new WebSegmentData(false, rayIdx, ring)); // false = кольцо, rayIdx = между какими лучами висит, ring = номер кольца
-                }
-
-                // Связывание физическим суставом левого края кольца с текущим лучом (в точке p1)
-                SpiderWebRope currentRay = radialRopes.get(rayIdx);
-                Body rayBody1 = currentRay.getSegments().get(raySegmentIdx);
-                Body ringStartBody = ringSegment.getSegments().first();
-
-                DistanceJointDef jointDef1 = new DistanceJointDef();
-                jointDef1.initialize(rayBody1, ringStartBody, p1, p1);
-                jointDef1.collideConnected = false;
-                jointDef1.frequencyHz = 3.0f;
-                jointDef1.dampingRatio = 0.7f;
-                world.createJoint(jointDef1);
-
-                // Связывание физическим суставом правого края кольца со следующим лучом (в точке p2)
-                SpiderWebRope nextRay = radialRopes.get((rayIdx + 1) % numRays);
-                Body rayBody2 = nextRay.getSegments().get(raySegmentIdx);
-                Body ringEndBody = ringSegment.getSegments().peek();
-
-                DistanceJointDef jointDef2 = new DistanceJointDef();
-                jointDef2.initialize(rayBody2, ringEndBody, p2, p2);
-                jointDef2.collideConnected = false;
-                jointDef2.frequencyHz = 3.0f;
-                jointDef2.dampingRatio = 0.7f;
-                world.createJoint(jointDef2);
-
-                // --- ПРОШИВКА ГРАФА ДЛЯ ПОПЕРЕЧНЫХ НИТЕЙ И ПЕРЕКРЕСТКОВ ---
-                // Шаг В: Связываем левую развилку (палочку луча с началом кольца)
-                link(rayBody1, ringStartBody);
-
-                // Шаг Г: Связываем правую развилку (палочку соседнего луча с концом кольца)
-                link(rayBody2, ringEndBody);
-
-                // Шаг Д: Связываем два внутренних сегмента самого кольца между собой, чтобы жук полз по нему непрерывно
-                if (ringSegment.getSegments().size > 1) {
-                    link(ringSegment.getSegments().get(0), ringSegment.getSegments().get(1));
-                }
+                Body segment = createSegment(posA, posB);
+                allSegments.add(segment);
             }
         }
     }
 
     /**
-     * Вспомогательный метод для взаимной прошивки соседей в массивы connectedNeighbors.
-     * Берет два тела, достает их WebSegmentData и безопасно добавляет ссылки друг на друга.
+     * Создает честное физическое тело для палочки-сегмента паутины с правильным углом
      */
-    private void link(Body a, Body b) {
-        if (a == null || b == null) return;
+    private Body createSegment(Vector2 pA, Vector2 pB) {
+        BodyDef bDef = new BodyDef();
+        // На джеме нити делаем статическими (StaticBody), либо кинематическими (KinematicBody),
+        // чтобы они не падали вниз от гравитации, но жук мог по ним ползать.
+        bDef.type = BodyDef.BodyType.KinematicBody;
 
-        WebSegmentData dataA = (WebSegmentData) a.getUserData();
-        WebSegmentData dataB = (WebSegmentData) b.getUserData();
+        // 1. Позиция тела в Box2D — это всегда строго геометрический ЦЕНТР отрезка
+        bDef.position.set((pA.x + pB.x) / 2f, (pA.y + pB.y) / 2f);
 
-        if (dataA != null && dataB != null) {
-            // Добавляем тело B в список соседей тела A, если его там еще нет
-            if (!dataA.connectedNeighbors.contains(b, true)) {
-                dataA.connectedNeighbors.add(b);
-            }
-            // Добавляем тело A в список соседей тела B
-            if (!dataB.connectedNeighbors.contains(a, true)) {
-                dataB.connectedNeighbors.add(a);
-            }
-        }
+        // 2. ✨ ИДЕАЛЬНЫЙ РАСЧЕТ УГЛА: Локальная ось X тела теперь сонаправлена с нитью!
+        bDef.angle = (float) Math.atan2(pB.y - pA.y, pB.x - pA.x);
+
+        Body body = world.createBody(bDef);
+
+        // 3. Создаем форму прямоугольника.
+        // Так как угол уже задан в bDef.angle, форму мы делаем ровной (горизонтальной) вокруг нуля.
+        float length = pA.dst(pB);
+        float thickness = 0.08f; // Толщина нити в метрах Box2D
+
+        PolygonShape shape = new PolygonShape();
+        // setAsBox принимает ПОЛУширину и ПОЛУвысоту
+        shape.setAsBox(length / 2f, thickness / 2f);
+
+        FixtureDef fDef = new FixtureDef();
+        fDef.shape = shape;
+        fDef.isSensor = true; // Скелет паутины — это сенсор, чтобы жук сквозь него не бился, но ловил контакты
+
+        body.createFixture(fDef);
+        shape.dispose();
+
+        // 4. Обязательно вешаем маркер данных, чтобы WebContactListener понимал, что это нить паутины
+        body.setUserData(new WebSegmentData());
+
+        return body;
     }
 
-    public void render(ShapeRenderer shapeRenderer) {
-        // Просто просим каждую нить честно нарисовать свои физические звенья-коробки
-        for (SpiderWebRope rope : radialRopes) {
-            rope.render(shapeRenderer);
-        }
-        for (SpiderWebRope rope : spiralRopes) {
-            rope.render(shapeRenderer);
-        }
-
-        // Центральный узел паутины (опционально, если хотите видеть саму серединку)
-        Vector2 centerPos = webCenterBody.getPosition();
-        shapeRenderer.circle(centerPos.x, centerPos.y, 0.1f, 8);
-    }
-
+    /**
+     * Применение силы ветра (если нити будут KinematicBody, это заставит их качаться)
+     */
     public void applyWind(float forceX, float forceY) {
-        for (SpiderWebRope rope : radialRopes) {
-            rope.applyWind(forceX, forceY);
+        // Если вы решите сделать нити KinematicBody для симуляции качания от ветра,
+        // тут можно будет задавать им линейную скорость. Для StaticBody этот метод будет спать.
+        for (Body segment : allSegments) {
+            // Напрямую задаем кинематическим нитям линейную скорость от ветра
+            // Чтобы паутина не улетала, скорость должна циклично менять направление (как ваш синус)
+            segment.setLinearVelocity(forceX, forceY);
         }
     }
 
-    public Array<SpiderWebRope> getRadialRopes() { return radialRopes; }
-    public Array<SpiderWebRope> getSpiralRopes() { return spiralRopes; }
+    /**
+     * Отрисовка паутины с помощью геометрических линий ShapeRenderer
+     */
+    public void render(ShapeRenderer shapeRenderer) {
+        Vector2 vertex0 = new Vector2();
+        Vector2 vertex1 = new Vector2();
+
+        for (Body segment : allSegments) {
+            if (segment.getFixtureList().size > 0 && segment.getFixtureList().first().getShape() instanceof PolygonShape) {
+                PolygonShape poly = (PolygonShape) segment.getFixtureList().first().getShape();
+
+                // Достаем локальные координаты вершин краев палочки и переводим в мировые
+                poly.getVertex(0, vertex0);
+                poly.getVertex(2, vertex1); // вершина 2 противоположна вершине 0 в стандартном боксе
+
+                Vector2 w0 = segment.getWorldPoint(vertex0);
+                Vector2 w1 = segment.getWorldPoint(vertex1);
+
+                // Рисуем линию от края до края
+                shapeRenderer.line(w0.x, w0.y, w1.x, w1.y);
+            }
+        }
+    }
+
+    /**
+     * Возвращает список внутренних стартовых сегментов лучей для инициализации игрока в Main.java
+     */
+    public Array<Body> getRadialStartSegments() {
+        return radialStartSegments;
+    }
+
+    public Array<Body> getAllSegments() {
+        return allSegments;
+    }
 }
