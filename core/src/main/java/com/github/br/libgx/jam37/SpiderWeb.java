@@ -1,9 +1,10 @@
 package com.github.br.libgx.jam37;
 
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class SpiderWeb {
 
@@ -12,17 +13,22 @@ public class SpiderWeb {
 
     // Хранилище всех сегментов паутины (нитей) для рендеринга и логики
     private final Array<Body> allSegments = new Array<>();
+    // Длины сегментов для быстрого рендеринга по локальным осям
+    private final Array<Float> segmentLengths = new Array<>();
 
     // Отдельный список радиальных лучей, чтобы Main мог при старте найти за что зацепить жука
     private final Array<Body> radialStartSegments = new Array<>();
+    // Список статичных тел-якорей по краям экрана, удерживающих всю структуру
+    private final Array<Body> edgeAnchors = new Array<>();
+
+    // Кэш векторов для отрисовки, полностью защищающий от спама в Garbage Collector
+    private final Vector2 localLeft = new Vector2();
+    private final Vector2 localRight = new Vector2();
+    private final Vector2 worldLeft = new Vector2();
+    private final Vector2 worldRight = new Vector2();
 
     /**
-     * Конструктор генератора правильной паутины
-     * @param world Физический мир Box2D
-     * @param center Центр паутины (мировые координаты)
-     * @param maxRadius Насколько далеко раскинется паутина
-     * @param raysCount Количество радиальных лучей (осей, идущих от центра)
-     * @param ringsCount Количество концентрических колец (витков спирали)
+     * Конструктор генератора правильной пружинящей паутины
      */
     public SpiderWeb(World world, Vector2 center, float maxRadius, int raysCount, int ringsCount) {
         this.world = world;
@@ -39,6 +45,10 @@ public class SpiderWeb {
         Vector2 posA = new Vector2();
         Vector2 posB = new Vector2();
 
+        // Матрица для точечной прошивки суставов на стыках
+        // Индексы: [индекс_луча][индекс_сегмента_от_центра]
+        Body[][] rayMatrix = new Body[raysCount][ringsCount];
+
         // ====================================================
         // ШАГ 1: ГЕНЕРИРУЕМ РАДИАЛЬНЫЕ ЛУЧИ (Идут из центра наружу)
         // ====================================================
@@ -54,14 +64,49 @@ public class SpiderWeb {
                 float rEnd = (j + 1) * radiusStep;
 
                 posA.set(center.x + dirX * rStart, center.y + dirY * rStart);
-                posB.set(center.x + dirX * rEnd,   center.y + dirY * rEnd);
+                posB.set(center.x + dirX * rEnd, center.y + dirY * rEnd);
 
                 Body segment = createSegment(posA, posB);
                 allSegments.add(segment);
+                rayMatrix[i][j] = segment;
 
-                // Сохраняем самые первые внутренние сегменты лучей, чтобы Main.java мог привязать жука
+                // Сохраняем самые первые внутренние сегменты лучей для инициализации жука
                 if (j == 0) {
                     radialStartSegments.add(segment);
+                }
+
+                // ТОЧКА Б: Сшиваем сегменты одного луча последовательно «паровозиком» в точке стыка posA
+                if (j > 0) {
+                    DistanceJointDef jointDef = new DistanceJointDef();
+                    jointDef.initialize(rayMatrix[i][j - 1], segment, posA, posA);
+                    jointDef.collideConnected = false;
+
+                    // Жесткая настройка для прочного каркаса
+                    // Вместо stiffness и damping пишем:
+                    jointDef.frequencyHz = 6.0f;    // Чем выше частота, тем жестче пружина
+                    jointDef.dampingRatio = 0.5f;   // Значение 0.5f отлично гасит лишнюю тряску [1]
+
+                    world.createJoint(jointDef);
+                }
+
+                // ТОЧКА А: Фиксация самого внешнего края паутины к статичному невидимому дереву-якорю
+                if (j == ringsCount - 1) {
+                    BodyDef anchorDef = new BodyDef();
+                    anchorDef.type = BodyDef.BodyType.StaticBody;
+                    anchorDef.position.set(posB);
+                    Body anchor = world.createBody(anchorDef);
+                    edgeAnchors.add(anchor);
+
+                    DistanceJointDef edgeJoint = new DistanceJointDef();
+                    edgeJoint.initialize(segment, anchor, posB, posB);
+                    edgeJoint.collideConnected = false;
+
+                    // Максимальное натяжение на краях, чтобы паутина не провисала под собственным весом
+                    // Вместо stiffness и damping пишем:
+                    edgeJoint.frequencyHz = 10.0f;  // Самая высокая частота для жесткого каркаса
+                    edgeJoint.dampingRatio = 0.7f;  // Высокое гашение, чтобы края не вибрировали
+
+                    world.createJoint(edgeJoint);
                 }
             }
         }
@@ -71,6 +116,7 @@ public class SpiderWeb {
         // ====================================================
         for (int j = 1; j <= ringsCount; j++) {
             float currentRadius = j * radiusStep;
+            int raySegmentIdx = j - 1; // Берем соответствующий сегмент луча на этом уровне глубины
 
             for (int i = 0; i < raysCount; i++) {
                 float angleA = i * angleStep;
@@ -80,8 +126,35 @@ public class SpiderWeb {
                 posA.set(center.x + (float) Math.cos(angleA) * currentRadius, center.y + (float) Math.sin(angleA) * currentRadius);
                 posB.set(center.x + (float) Math.cos(angleB) * currentRadius, center.y + (float) Math.sin(angleB) * currentRadius);
 
-                Body segment = createSegment(posA, posB);
-                allSegments.add(segment);
+                Body ringSegment = createSegment(posA, posB);
+                allSegments.add(ringSegment);
+
+                // Достаем тела левого и правого лучей, между которыми натягивается текущая дуга кольца
+                Body leftRay = rayMatrix[i][raySegmentIdx];
+                Body rightRay = rayMatrix[(i + 1) % raysCount][raySegmentIdx];
+
+                // ТОЧКА В1: Подвешиваем левый край кольца к левому лучу (в точке posA)
+                DistanceJointDef jointLeft = new DistanceJointDef();
+                jointLeft.initialize(leftRay, ringSegment, posA, posA);
+                jointLeft.collideConnected = false;
+
+                // Делаем кольца эластичными: они мягче лучей, сочно тянутся и круто пружинят
+                // Вместо stiffness и damping пишем:
+                jointLeft.frequencyHz = 4.0f;   // Низкая частота сделает кольца мягкими и эластичными
+                jointLeft.dampingRatio = 0.4f;  // Позволит нити сделать пару красивых пружинящих покачиваний
+
+                world.createJoint(jointLeft);
+
+                // ТОЧКА В2: Подвешиваем правый край кольца к правому лучу (в точке posB)
+                DistanceJointDef jointRight = new DistanceJointDef();
+                jointRight.initialize(rightRay, ringSegment, posB, posB);
+                jointRight.collideConnected = false;
+
+                // Вместо stiffness и damping пишем:
+                jointLeft.frequencyHz = 4.0f;   // Низкая частота сделает кольца мягкими и эластичными
+                jointLeft.dampingRatio = 0.4f;  // Позволит нити сделать пару красивых пружинящих покачиваний
+
+                world.createJoint(jointRight);
             }
         }
     }
@@ -91,30 +164,33 @@ public class SpiderWeb {
      */
     private Body createSegment(Vector2 pA, Vector2 pB) {
         BodyDef bDef = new BodyDef();
-        // На джеме нити делаем статическими (StaticBody), либо кинематическими (KinematicBody),
-        // чтобы они не падали вниз от гравитации, но жук мог по ним ползать.
-        bDef.type = BodyDef.BodyType.KinematicBody;
+        // Включаем честную динамику, чтобы палочки смещались под весом физических объектов
+        bDef.type = BodyDef.BodyType.DynamicBody;
+
+        // Повышенное сопротивление сред, чтобы паутина возвращалась на место, а не вела себя как желе
+        bDef.linearDamping = 4.0f;
+        bDef.angularDamping = 4.0f;
 
         // 1. Позиция тела в Box2D — это всегда строго геометрический ЦЕНТР отрезка
         bDef.position.set((pA.x + pB.x) / 2f, (pA.y + pB.y) / 2f);
 
-        // 2. ✨ ИДЕАЛЬНЫЙ РАСЧЕТ УГЛА: Локальная ось X тела теперь сонаправлена с нитью!
+        // 2. ✨ Локальная ось X тела теперь сонаправлена с нитью
         bDef.angle = (float) Math.atan2(pB.y - pA.y, pB.x - pA.x);
 
         Body body = world.createBody(bDef);
 
         // 3. Создаем форму прямоугольника.
-        // Так как угол уже задан в bDef.angle, форму мы делаем ровной (горизонтальной) вокруг нуля.
         float length = pA.dst(pB);
-        float thickness = 0.08f; // Толщина нити в метрах Box2D
+        segmentLengths.add(length); // Кешируем длину нити для рендера
+        float thickness = 0.08f;    // Толщина нити в метрах Box2D
 
         PolygonShape shape = new PolygonShape();
-        // setAsBox принимает ПОЛУширину и ПОЛУвысоту
         shape.setAsBox(length / 2f, thickness / 2f);
 
         FixtureDef fDef = new FixtureDef();
         fDef.shape = shape;
-        fDef.isSensor = true; // Скелет паутины — это сенсор, чтобы жук сквозь него не бился, но ловил контакты
+        fDef.isSensor = true; // Сенсор ловит контакты (для WebContactListener), но не отталкивает жука физически
+        fDef.density = 0.5f;  // Облегчаем нити, чтобы пружины джоинтов отрабатывали эффективнее
 
         body.createFixture(fDef);
         shape.dispose();
@@ -126,45 +202,52 @@ public class SpiderWeb {
     }
 
     /**
-     * Применение силы ветра (если нити будут KinematicBody, это заставит их качаться)
+     * Применение силы ветра. Физически толкает упругие динамические нити.
      */
     public void applyWind(float forceX, float forceY) {
-        // Если вы решите сделать нити KinematicBody для симуляции качания от ветра,
-        // тут можно будет задавать им линейную скорость. Для StaticBody этот метод будет спать.
         for (Body segment : allSegments) {
-            // Напрямую задаем кинематическим нитям линейную скорость от ветра
-            // Чтобы паутина не улетала, скорость должна циклично менять направление (как ваш синус)
-            segment.setLinearVelocity(forceX, forceY);
+            // Так как тела динамические, этот метод заставит их реалистично отклоняться в сторону силы
+            segment.applyForceToCenter(forceX, forceY, true);
         }
     }
 
     /**
-     * Отрисовка паутины с помощью геометрических линий ShapeRenderer
+     * Отрисовка паутины строго вдоль локальных осей деформированных тел без спама в GC
      */
     public void render(ShapeRenderer shapeRenderer) {
-        Vector2 vertex0 = new Vector2();
-        Vector2 vertex1 = new Vector2();
+        for (int i = 0; i < allSegments.size; i++) {
+            Body segment = allSegments.get(i);
+            float halfLength = segmentLengths.get(i) / 2f;
 
-        for (Body segment : allSegments) {
-            if (segment.getFixtureList().size > 0 && segment.getFixtureList().first().getShape() instanceof PolygonShape) {
-                PolygonShape poly = (PolygonShape) segment.getFixtureList().first().getShape();
+            // Локальные координаты краев ровной палочки вокруг ее центра (0,0)
+            localLeft.set(-halfLength, 0);
+            localRight.set(halfLength, 0);
 
-                // Достаем локальные координаты вершин краев палочки и переводим в мировые
-                poly.getVertex(0, vertex0);
-                poly.getVertex(2, vertex1); // вершина 2 противоположна вершине 0 в стандартном боксе
+            // Переводим локальные точки в мировые с учетом текущего смещения/поворота тела физикой
+            worldLeft.set(segment.getWorldPoint(localLeft));
+            worldRight.set(segment.getWorldPoint(localRight));
 
-                Vector2 w0 = segment.getWorldPoint(vertex0);
-                Vector2 w1 = segment.getWorldPoint(vertex1);
-
-                // Рисуем линию от края до края
-                shapeRenderer.line(w0.x, w0.y, w1.x, w1.y);
-            }
+            // Рисуем линию от края до края
+            shapeRenderer.line(worldLeft.x, worldLeft.y, worldRight.x, worldRight.y);
         }
     }
 
-    /**
-     * Возвращает список внутренних стартовых сегментов лучей для инициализации игрока в Main.java
-     */
+    //* Очистка физического мира при перезапуске уровня / выходе в меню*/
+
+
+    public void dispose() {
+        for (Body body : allSegments) {
+            world.destroyBody(body);
+        }
+        for (Body anchor : edgeAnchors) {
+            world.destroyBody(anchor);
+        }
+        allSegments.clear();
+        segmentLengths.clear();
+        radialStartSegments.clear();
+        edgeAnchors.clear();
+    }
+
     public Array<Body> getRadialStartSegments() {
         return radialStartSegments;
     }
@@ -173,3 +256,4 @@ public class SpiderWeb {
         return allSegments;
     }
 }
+
