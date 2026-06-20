@@ -87,60 +87,60 @@ public class SpiderUpdateSystem extends IteratingSystem {
         // ====================================================
         // 2. РАСЧЕТ ИДЕАЛЬНОЙ СТУПНИ ИЗ ПРЯМОЙ КИНЕМАТИКИ СУСТАВОВ
         // ====================================================
-//        for (int i = 0; i < 8; i++) {
-//            spider.legTimers[i] += dt;
-//            int configIdx = i % 4;
-//            boolean isLeft = (i < 4);
-//
-//            // Читаем длины костей из конфига
-//            float fLen = spider.femurLengthConfig[configIdx];
-//            float tLen = spider.tibiaLengthConfig[configIdx];
-//            float tarsLen = spider.tarsusLengthConfig[configIdx];
-//
-//            // Читаем и выстраиваем углы суставов по цепочке
-//            float fAng = spider.femurAngleConfig[configIdx];
-//            float tAng = spider.tibiaAngleConfig[configIdx];
-//            float tarsAng = spider.tarsusAngleConfig[configIdx];
-//
-//            // Если нога левая — зеркально инвертируем все знаки углов наружу/вовнутри
-//            if (isLeft) {
-//                fAng = -fAng;
-//                tAng = -tAng;
-//                tarsAng = -tarsAng;
-//            }
-//
-//            // Абсолютные мировые углы каждого сустава в пространстве
-//            float currentWorldFemurAngle = bodyAngle + fAng;
-//            float currentWorldTibiaAngle = currentWorldFemurAngle + tAng;
-//            float currentWorldTarsusAngle = currentWorldTibiaAngle + tarsAng;
-//
-//            // Считаем финальную точку ступни, складывая сдвиги трех члеников
-//            float fRad = (float) Math.toRadians(currentWorldFemurAngle);
-//            float tRad = (float) Math.toRadians(currentWorldTibiaAngle);
-//            float tarsRad = (float) Math.toRadians(currentWorldTarsusAngle);
-//
-//            float footX = prosomaPos.x + (float)Math.cos(fRad)*fLen + (float)Math.cos(tRad)*tLen + (float)Math.cos(tarsRad)*tarsLen;
-//            float footY = prosomaPos.y + (float)Math.sin(fRad)*fLen + (float)Math.sin(tRad)*tLen + (float)Math.sin(tarsRad)*tarsLen;
-//
-//            spider.targetFootPos[i].set(footX, footY);
-//
-//            // Фича магнитного прилипания к нитям паутины
-//            if (cachedSpiderWeb != null) {
-//                snapToNearestWebSegment(spider.targetFootPos[i], cachedSpiderWeb.getAllSegments());
-//            }
-//
-//            // Логика Лерп-шага лап
-//            float distanceToTarget = spider.currentFootPos[i].dst(spider.targetFootPos[i]);
-//            boolean isLegTurnToMove = (i % 2 == 0)
-//                ? (Math.sin(spider.legTimers[i] * 16f) > 0)
-//                : (Math.sin(spider.legTimers[i] * 16f) < 0);
-//
-//            if (distanceToTarget > 0.4f && isLegTurnToMove) {
-//                spider.currentFootPos[i].lerp(spider.targetFootPos[i], 0.35f);
-//            } else {
-//                spider.currentFootPos[i].lerp(spider.currentFootPos[i], 0.05f);
-//            }
-//        }
+        for (int i = 0; i < 8; i++) {
+            spider.legTimers[i] += dt;
+            int configIdx = i % 4;
+            boolean isLeft = (i < 4);
+
+            // Читаем длины костей из конфига
+            float fLen = spider.femurLengthConfig[configIdx];
+            float tLen = spider.tibiaLengthConfig[configIdx];
+            float tarsLen = spider.tarsusLengthConfig[configIdx];
+
+            // Читаем и выстраиваем углы суставов по цепочке
+            float fAng = spider.femurAngleConfig[configIdx];
+            float tAng = spider.tibiaAngleConfig[configIdx];
+            float tarsAng = spider.tarsusAngleConfig[configIdx];
+
+            // Если нога левая — зеркально инвертируем все знаки углов наружу/вовнутри
+            if (isLeft) {
+                fAng = -fAng;
+                tAng = -tAng;
+                tarsAng = -tarsAng;
+            }
+
+            // Абсолютные мировые углы каждого сустава в пространстве
+            float currentWorldFemurAngle = bodyAngle + fAng;
+            float currentWorldTibiaAngle = currentWorldFemurAngle + tAng;
+            float currentWorldTarsusAngle = currentWorldTibiaAngle + tarsAng;
+
+            // Считаем финальную точку ступни, складывая сдвиги трех члеников
+            float fRad = (float) Math.toRadians(currentWorldFemurAngle);
+            float tRad = (float) Math.toRadians(currentWorldTibiaAngle);
+            float tarsRad = (float) Math.toRadians(currentWorldTarsusAngle);
+
+            float footX = prosomaPos.x + (float)Math.cos(fRad)*fLen + (float)Math.cos(tRad)*tLen + (float)Math.cos(tarsRad)*tarsLen;
+            float footY = prosomaPos.y + (float)Math.sin(fRad)*fLen + (float)Math.sin(tRad)*tLen + (float)Math.sin(tarsRad)*tarsLen;
+
+            spider.targetFootPos[i].set(footX, footY);
+
+            // Фича магнитного прилипания к нитям паутины
+            if (cachedSpiderWeb != null) {
+                snapToNearestWebSegment(spider.targetFootPos[i], cachedSpiderWeb.getAllSegments());
+            }
+
+            // Логика Лерп-шага лап
+            float distanceToTarget = spider.currentFootPos[i].dst(spider.targetFootPos[i]);
+            boolean isLegTurnToMove = (i % 2 == 0)
+                ? (Math.sin(spider.legTimers[i] * 16f) > 0)
+                : (Math.sin(spider.legTimers[i] * 16f) < 0);
+
+            if (distanceToTarget > 0.4f && isLegTurnToMove) {
+                spider.currentFootPos[i].lerp(spider.targetFootPos[i], 0.35f);
+            } else {
+                spider.currentFootPos[i].lerp(spider.currentFootPos[i], 0.05f);
+            }
+        }
     }
 
     private void snapToNearestWebSegment(Vector2 targetPos, Array<Body> webSegments) {

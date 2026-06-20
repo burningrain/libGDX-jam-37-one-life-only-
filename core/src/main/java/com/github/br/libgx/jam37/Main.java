@@ -8,6 +8,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
+import com.badlogic.gdx.physics.box2d.joints.WeldJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
@@ -75,7 +76,7 @@ public class Main implements ApplicationListener {
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
         Vector2 startPos = startSegmentBody.getPosition();
 
-        //createPlayer(5, startPos, spiderWeb);
+        createPlayer(5, startPos, spiderWeb);
 
         Body spawnSegmentBody = spiderWeb.getAllSegments().get(12);
         createSpider(spawnSegmentBody.getPosition());
@@ -244,12 +245,20 @@ public class Main implements ApplicationListener {
         opisthoShape.dispose();
 
         // Соединяем Головогрудь и Брюшко (Стебельчатый сустав)
-        RevoluteJointDef waistJoint = new RevoluteJointDef();
-        Vector2 waistAnchor = new Vector2(spawnPos.x - 0.35f, spawnPos.y); // Теперь это идеальная точка касания!
+        // ====================================================
+        // ИСПРАВЛЕНО: СВЯЗЫВАЕМ ГОЛОВОГРУДЬ И БРЮШКО СВАРНЫМ СУСТАВОМ (WeldJoint)
+        // ====================================================
+        WeldJointDef waistJoint = new WeldJointDef();
+        Vector2 waistAnchor = new Vector2(spawnPos.x - 0.35f, spawnPos.y);
         waistJoint.initialize(spiderComp.prosoma, spiderComp.opisthosoma, waistAnchor);
-        waistJoint.enableLimit = true;
-        waistJoint.lowerAngle = -0.3f;
-        waistJoint.upperAngle = 0.3f;
+        waistJoint.collideConnected = false;
+
+        // Настраиваем мягкость «сварки»:
+        // Сустав будет жестко удерживать брюшко соосно голове, но позволит ему
+        // упруго вилять на резких поворотах, амортизируя заносы, как живой хитин!
+        waistJoint.frequencyHz = 5.0f;   // Чем выше, тем монолитнее тело паука
+        waistJoint.dampingRatio = 0.7f;  // Быстро возвращает брюшко в ровное положение
+
         box2dWorld.createJoint(waistJoint);
 
         // 3. СОЗДАЕМ ХЕЛИЦЕРЫ (Две маленькие челюсти спереди)
