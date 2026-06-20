@@ -6,7 +6,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
+import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
@@ -56,7 +56,7 @@ public class Main implements ApplicationListener {
         artemisWorld = new com.artemis.World(config);
 
         SpiderWeb spiderWeb = createSpiderWeb(worldHeight);
-        createPlayer(spiderWeb);
+        createPlayer(4, spiderWeb);
     }
 
     private SpiderWeb createSpiderWeb(float worldHeight) {
@@ -75,8 +75,7 @@ public class Main implements ApplicationListener {
         return spiderWeb;
     }
 
-    private void createPlayer(SpiderWeb spiderWeb) {
-        int segmentCount = 3;
+    private void createPlayer(int segmentCount, SpiderWeb spiderWeb) {
         Body[] segments = new Body[segmentCount];
 
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
@@ -100,7 +99,7 @@ public class Main implements ApplicationListener {
 
             FixtureDef pFixture = new FixtureDef();
             pFixture.shape = playerShape;
-            pFixture.density = 0.5f;
+            pFixture.density = 0.1f;
             pFixture.filter.groupIndex = -1;
             pFixture.isSensor = true;
 
@@ -110,30 +109,28 @@ public class Main implements ApplicationListener {
             segments[i] = segBody;
         }
 
-        // 2. СВЯЗЫВАЕМ СЕГМЕНТЫ СУСТАВАМИ (Ваш код)
+        // 2. СВЯЗЫВАЕМ СЕГМЕНТЫ МЯГКИМИ ПРУЖИНАМИ
         for (int i = 0; i < segmentCount - 1; i++) {
             Body bodyA = segments[i];
             Body bodyB = segments[i + 1];
 
-            RevoluteJointDef jointDef = new RevoluteJointDef();
-            Vector2 anchor = new Vector2(
-                (bodyA.getPosition().x + bodyB.getPosition().x) / 2f,
-                (bodyA.getPosition().y + bodyB.getPosition().y) / 2f
-            );
-            jointDef.initialize(bodyA, bodyB, anchor);
-            jointDef.collideConnected = false;
-            jointDef.enableLimit = true;
-            jointDef.lowerAngle = -0.5f;
-            jointDef.upperAngle = 0.5f;
+            DistanceJointDef distanceJointDef = new DistanceJointDef();
+            // Связываем строго центры кружков
+            distanceJointDef.initialize(bodyA, bodyB, bodyA.getPosition(), bodyB.getPosition());
+            distanceJointDef.collideConnected = false;
 
-            box2dWorld.createJoint(jointDef);
+            // Настройка мягкости связи внутри гусеницы
+            distanceJointDef.frequencyHz = 8.0f;  // Достаточно жестко, чтобы хвост не отставал
+            distanceJointDef.dampingRatio = 0.7f; // Гасим лишнюю болтанку хвоста
+
+            box2dWorld.createJoint(distanceJointDef);
         }
 
-        // 3. ЗАПОЛНЯЕМ СТАНДАРТНЫЕ КОМПОНЕНТЫ (Ваш код)
+        // 3. ЗАПОЛНЯЕМ СТАНДАРТНЫЕ КОМПОНЕНТЫ
         PlayerComponent playerComp = artemisWorld.getMapper(PlayerComponent.class).create(entityId);
         PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
 
-        physicsComp.body = segments[0];
+        physicsComp.body = segments[0]; // Оставляем голову для обратной совместимости логики
         playerComp.bodySegments = segments;
         playerComp.currentSegmentBody = startSegmentBody;
         playerComp.entityId = entityId;
@@ -145,10 +142,36 @@ public class Main implements ApplicationListener {
         playerRenderComp.layer = 1; // Рисуем ПОВЕРХ паутины (слой 1)
         playerRenderComp.renderer = new CaterpillarRenderer(segments); // Передаем кастомный отрисовщик
 
-        // 5. ИНТЕНТЫ ПРИВЯЗКИ (Ваш код)
+        // ====================================================
+        // 5. ИНТЕНТЫ ПРИВЯЗКИ (ИСПРАВЛЕНО: Массивы для всей гусеницы)
+        // ====================================================
         PrismaticRebindIntent startIntent = artemisWorld.getMapper(PrismaticRebindIntent.class).create(entityId);
-        startIntent.bodyToBind = segments[0];
-        startIntent.targetSegmentBody = startSegmentBody;
+        startIntent.init(segmentCount);
+
+        // Инициализируем массивы под segmentCount сегментов
+        startIntent.bodiesToBind = segments;
+        startIntent.targetSegmentBodies = new Body[segmentCount];
+        for (int i = 0; i < segmentCount; i++) {
+            startIntent.targetSegmentBodies[i] = startSegmentBody;
+        }
+
+        // Рассчитываем геометрию для стартовой нити паутины
+        float targetAngle = startSegmentBody.getAngle();
+        Vector2 initialAxis = new Vector2((float) Math.cos(targetAngle), (float) Math.sin(targetAngle)).nor();
+
+        float halfLength = 1.0f; // Дефолтное значение
+        if (startSegmentBody.getFixtureList().size > 0 && startSegmentBody.getFixtureList().first().getShape() instanceof PolygonShape) {
+            PolygonShape poly = (PolygonShape) startSegmentBody.getFixtureList().first().getShape();
+            Vector2 vertex = new Vector2();
+            poly.getVertex(0, vertex);
+            halfLength = Math.abs(vertex.x);
+        }
+
+        // Заполняем параметры геометрии для каждого из 3-х суставов
+        for (int i = 0; i < segmentCount - 1; i++) {
+            startIntent.calculatedWorldAxes[i].set(initialAxis);
+            startIntent.calculatedHalfLengths[i] = halfLength;
+        }
 
         artemisWorld.getSystem(TagManager.class).register(Tags.PLAYER, entityId);
     }

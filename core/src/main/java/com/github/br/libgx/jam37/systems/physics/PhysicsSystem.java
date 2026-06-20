@@ -64,38 +64,61 @@ public class PhysicsSystem extends BaseSystem {
     }
 
     private void handleRebind(PrismaticRebindIntent intent, PhysicsComponent physics, PlayerComponent player) {
-        if (physics.crawlJoint != null) {
-            world.destroyJoint(physics.crawlJoint);
-            physics.crawlJoint = null;
+        int length = intent.targetSegmentBodies.length;
+
+        // 1. Уничтожаем ВСЕ старые суставы рельс гусеницы (если они существовали)
+        if (physics.crawlJoints != null) {
+            for (int i = 0; i < physics.crawlJoints.length; i++) {
+                if (physics.crawlJoints[i] != null) {
+                    world.destroyJoint(physics.crawlJoints[i]);
+                    physics.crawlJoints[i] = null;
+                }
+            }
+        } else {
+            // На случай первой инициализации создаем массив для трех суставов
+            physics.crawlJoints = new PrismaticJoint[length];
         }
 
-        Body targetBody = intent.targetSegmentBody;
-        Body playerBody = intent.bodyToBind;
-        Vector2 axis = intent.calculatedWorldAxis;
+        // 2. Последовательно пересобираем суставы для Головы (0), Тела (1) и Хвоста (2)
+        for (int i = 0; i < length; i++) {
+            Body targetBody = intent.targetSegmentBodies[i];
+            Body playerSegment = intent.bodiesToBind[i];
+            Vector2 axis = intent.calculatedWorldAxes[i];
+            float halfLength = intent.calculatedHalfLengths[i];
 
-        // Находим проекцию и выравниваем строго по данным из интента
-        Vector2 targetPos = targetBody.getPosition();
-        Vector2 toPlayer = new Vector2(playerBody.getPosition()).sub(targetPos);
-        float distanceAlongAxis = toPlayer.dot(axis);
-        Vector2 snapPosition = new Vector2(axis).scl(distanceAlongAxis).add(targetPos);
+            // Находим проекцию и выравниваем строго по вашему алгоритму
+            Vector2 targetPos = targetBody.getPosition();
+            Vector2 toPlayer = new Vector2(playerSegment.getPosition()).sub(targetPos);
+            float distanceAlongAxis = toPlayer.dot(axis);
+            Vector2 snapPosition = new Vector2(axis).scl(distanceAlongAxis).add(targetPos);
 
-        playerBody.setTransform(snapPosition.x, snapPosition.y, playerBody.getAngle());
+            playerSegment.setTransform(snapPosition.x, snapPosition.y, playerSegment.getAngle());
 
-        // Чистая сборка сустава без копания в полигонах
-        PrismaticJointDef jointDef = new PrismaticJointDef();
-        jointDef.initialize(targetBody, playerBody, snapPosition, axis);
-        jointDef.enableMotor = true;
-        jointDef.maxMotorForce = 100.0f;
-        jointDef.motorSpeed = 0f;
-        jointDef.collideConnected = false;
+            // Чистая сборка сустава (настройки сохранены один в один)
+            PrismaticJointDef jointDef = new PrismaticJointDef();
+            jointDef.initialize(targetBody, playerSegment, snapPosition, axis);
+            jointDef.enableMotor = true;
+            jointDef.maxMotorForce = 100.0f; // Сохранено
+            jointDef.motorSpeed = 0f;        // Сохранено
+            jointDef.collideConnected = false;
 
-        // Применяем лимиты, переданные снаружи
-        jointDef.enableLimit = true;
-        jointDef.lowerTranslation = -intent.calculatedHalfLength - distanceAlongAxis - 0.1f;
-        jointDef.upperTranslation = intent.calculatedHalfLength - distanceAlongAxis + 0.1f;
+            // Применяем лимиты, переданные снаружи (Сохранено)
+            if (i == 0) {
+                jointDef.enableLimit = true;
+                jointDef.lowerTranslation = -halfLength - distanceAlongAxis - 0.1f;
+                jointDef.upperTranslation = halfLength - distanceAlongAxis + 0.1f;
+            } else {
+                jointDef.enableLimit = true;
+                jointDef.lowerTranslation = -halfLength - distanceAlongAxis;
+                jointDef.upperTranslation = halfLength - distanceAlongAxis;
+            }
 
-        physics.crawlJoint = (PrismaticJoint) world.createJoint(jointDef);
-        player.currentSegmentBody = targetBody;
+            // Создаем сустав и записываем в массив под соответствующим индексом
+            physics.crawlJoints[i] = (PrismaticJoint) world.createJoint(jointDef);
+        }
+
+        // Запоминаем текущую корневую нить паутины, на которой стоит именно Голова (индекс 0)
+        player.currentSegmentBody = intent.targetSegmentBodies[0];
     }
 
     @Override

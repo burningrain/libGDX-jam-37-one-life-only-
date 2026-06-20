@@ -5,10 +5,18 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 
 public class PrismaticRebindIntent extends Component {
-    public Body bodyToBind;         // Тело жука
-    public Body targetSegmentBody;  // Тело сегмента-рельса
+    // Теперь здесь лежат массивы: для какого тела гусеницы какую нить паутины мы переназначаем
+    public Body[] bodiesToBind;        // Длина (Голова, Тело, Хвост)
+    public Body[] targetSegmentBodies; // Длина (Соответствующие нити паутины)
 
-    // ✨ НОВЫЕ ПОЛЯ: Вся геометрия рассчитывается ДО физической системы
-    public final Vector2 calculatedWorldAxis = new Vector2();
-    public float calculatedHalfLength;
+    public Vector2[] calculatedWorldAxes;
+    public float[] calculatedHalfLengths;
+
+    public void init(int segments) {
+        this.calculatedWorldAxes = new Vector2[segments];
+        for (int i = 0; i < segments; i++) {
+            calculatedWorldAxes[i] = new Vector2();
+        }
+        this.calculatedHalfLengths = new float[segments];
+    }
 }

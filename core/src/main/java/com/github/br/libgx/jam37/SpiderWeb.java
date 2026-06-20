@@ -158,14 +158,23 @@ public class SpiderWeb implements Renderable {
         // ====================================================
         for (int j = 1; j <= ringsCount; j++) {
             float currentRadius = j * radiusStep;
+
+            // ИСПРАВЛЕНО: Кольцо j должно крепиться к концу пролета j - 1,
+            // который как раз завершается на радиусе currentRadius!
             int raySegmentIdx = j - 1;
 
             for (int i = 0; i < raysCount; i++) {
                 float angleA = i * angleStep;
                 float angleB = ((i + 1) % raysCount) * angleStep;
 
+                // Проверяем, чтобы индекс не вышел за пределы матрицы
+                if (raySegmentIdx >= ringsCount) continue;
+
                 Body leftRay = rayMatrix[i][raySegmentIdx];
                 Body rightRay = rayMatrix[(i + 1) % raysCount][raySegmentIdx];
+
+                // Если вдруг луч на самом краю отсутствует, страхуемся
+                if (leftRay == null || rightRay == null) continue;
 
                 float totalAngleDelta = angleB - angleA;
                 if (totalAngleDelta < 0) {
@@ -185,28 +194,24 @@ public class SpiderWeb implements Renderable {
                     Body currentRingSegment = createSegment(posA, posB);
                     allSegments.add(currentRingSegment);
 
-                    // ТОЧКА К1: Начало дуги намертво пришиваем к левому лучу
+                    // ТОЧКА К1: Пришиваем ровно стык в стык к концу подсегмента луча
                     if (k == 0) {
                         DistanceJointDef jointLeft = new DistanceJointDef();
+                        // Инициализируем в реальной точке posA на луче
                         jointLeft.initialize(leftRay, currentRingSegment, posA, posA);
                         jointLeft.collideConnected = false;
-                        jointLeft.frequencyHz = 9.0f;  // Высокая жесткость каркаса
-                        jointLeft.dampingRatio = 0.9f;  // Плотное гашение
+                        jointLeft.frequencyHz = 12.0f;  // Поднимаем жесткость стыков на краях
+                        jointLeft.dampingRatio = 0.7f;
                         world.createJoint(jointLeft);
                     }
 
                     // ТОЧКА К2: Сшиваем внутренние микро-сегменты кольца между собой
                     if (previousRingSegment != null) {
                         DistanceJointDef jointInternal = new DistanceJointDef();
-                        // Точно инициализируем в точке стыка posA
                         jointInternal.initialize(previousRingSegment, currentRingSegment, posA, posA);
                         jointInternal.collideConnected = false;
-
-                        // Повышаем жесткость, чтобы нити не разлетались как сено,
-                        // но оставляем минимальный ход для микро-провисания под нагрузкой
-                        jointInternal.frequencyHz = 7.5f;
-                        jointInternal.dampingRatio = 0.85f;
-
+                        jointInternal.frequencyHz = 10.0f;
+                        jointInternal.dampingRatio = 0.7f;
                         world.createJoint(jointInternal);
                     }
 
@@ -215,8 +220,8 @@ public class SpiderWeb implements Renderable {
                         DistanceJointDef jointRight = new DistanceJointDef();
                         jointRight.initialize(currentRingSegment, rightRay, posB, posB);
                         jointRight.collideConnected = false;
-                        jointRight.frequencyHz = 9.0f;
-                        jointRight.dampingRatio = 0.9f;
+                        jointRight.frequencyHz = 12.0f;
+                        jointRight.dampingRatio = 0.7f;
                         world.createJoint(jointRight);
                     }
 
