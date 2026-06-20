@@ -1,4 +1,4 @@
-package com.github.br.libgx.jam37.systems;
+package com.github.br.libgx.jam37.systems.physics;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
@@ -8,9 +8,8 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef;
-import com.github.br.libgx.jam37.WebContactListener;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
-import com.github.br.libgx.jam37.components.PlayerComponent;
+import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 
 public class PhysicsSystem extends BaseSystem {
@@ -26,8 +25,12 @@ public class PhysicsSystem extends BaseSystem {
     protected ComponentMapper<PlayerComponent> mPlayer;
     protected ComponentMapper<PrismaticRebindIntent> mIntent;
 
-    public PhysicsSystem(World world) {
-        this.world = world;
+    public World getBox2dWorld() {
+        return world;
+    }
+
+    public PhysicsSystem() {
+        this.world = new World(new Vector2(0, 0), true);
     }
 
     @Override

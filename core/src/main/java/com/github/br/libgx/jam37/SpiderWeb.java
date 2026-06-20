@@ -5,8 +5,9 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 import com.badlogic.gdx.utils.Array;
+import com.github.br.libgx.jam37.systems.render.Renderable;
 
-public class SpiderWeb {
+public class SpiderWeb implements Renderable {
 
     private final World world;
     private final Vector2 center;
@@ -288,7 +289,8 @@ public class SpiderWeb {
     }
 
     /*** Отрисовка паутины строго вдоль локальных осей деформированных тел без спама в GC*/
-    public void render(ShapeRenderer shapeRenderer) {
+    @Override
+    public void draw(ShapeRenderer shapeRenderer) {
         for (int i = 0; i < allSegments.size; i++) {
             Body segment = allSegments.get(i);
             float halfLength = segmentLengths.get(i) / 2f;

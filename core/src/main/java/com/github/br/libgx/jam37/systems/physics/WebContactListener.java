@@ -1,11 +1,13 @@
-package com.github.br.libgx.jam37;
+package com.github.br.libgx.jam37.systems.physics;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.managers.TagManager;
 import com.badlogic.gdx.physics.box2d.*;
+import com.github.br.libgx.jam37.Tags;
+import com.github.br.libgx.jam37.WebSegmentData;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
-import com.github.br.libgx.jam37.components.PlayerComponent;
+import com.github.br.libgx.jam37.components.player.PlayerComponent;
 
 public class WebContactListener extends BaseSystem implements ContactListener {
 
@@ -62,7 +64,7 @@ public class WebContactListener extends BaseSystem implements ContactListener {
 
     private int getPlayerId() {
         if (playerId == -1) {
-            playerId = world.getSystem(TagManager.class).getEntityId("PLAYER");
+            playerId = world.getSystem(TagManager.class).getEntityId(Tags.PLAYER);
         }
         return playerId;
     }

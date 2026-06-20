@@ -3,196 +3,161 @@ package com.github.br.libgx.jam37;
 import com.artemis.managers.TagManager;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.FrameBuffer;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
-import com.github.br.libgx.jam37.components.PlayerComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
-import com.github.br.libgx.jam37.systems.PhysicsSystem;
+import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
+import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.PlayerInputSystem;
+import com.github.br.libgx.jam37.systems.WindSystem;
+import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
+import com.github.br.libgx.jam37.systems.physics.WebContactListener;
+import com.github.br.libgx.jam37.systems.render.RenderSystem;
+
+import static com.github.br.libgx.jam37.Constants.WORLD_WIDTH;
 
 public class Main implements ApplicationListener {
 
-    private static final float WORLD_WIDTH = 32f;
-    private static final int VIRTUAL_WIDTH = 960;
-    private static final int VIRTUAL_HEIGHT = 540;
-
-    private FrameBuffer fbo;
-    private SpriteBatch spriteBatch;
-    private OrthographicCamera fboCamera;
-
-    private World world;
-    private Box2DDebugRenderer debugRenderer;
-    private ShapeRenderer shapeRenderer;
-    private float time = 0;
-
     private OrthographicCamera camera;
     private Viewport viewport;
-    private SpiderWeb spiderWeb;
-
-    // Переменные плавного физического игрока
-    private Body playerBody;
 
     private com.artemis.World artemisWorld;
 
     @Override
     public void create() {
-        world = new World(new Vector2(0, 0), true);
-        debugRenderer = new Box2DDebugRenderer();
-        shapeRenderer = new ShapeRenderer();
-        spriteBatch = new SpriteBatch();
-
-        float aspectRatio = (float) VIRTUAL_HEIGHT / (float) VIRTUAL_WIDTH;
-        float worldHeight = WORLD_WIDTH * aspectRatio;
-
         camera = new OrthographicCamera();
-        viewport = new FitViewport(WORLD_WIDTH, worldHeight, camera);
-        camera.position.set(WORLD_WIDTH / 2f, worldHeight / 2f, 0);
+        float aspectRatio = (float) Constants.VIRTUAL_HEIGHT / (float) Constants.VIRTUAL_WIDTH;
+        float worldHeight = Constants.WORLD_WIDTH * aspectRatio;
+        viewport = new FitViewport(Constants.WORLD_WIDTH, worldHeight, camera);
+        camera.position.set(Constants.WORLD_WIDTH / 2f, worldHeight / 2f, 0);
         camera.update();
-
-        fboCamera = new OrthographicCamera();
-        fboCamera.setToOrtho(false, WORLD_WIDTH, worldHeight);
-        fboCamera.position.set(WORLD_WIDTH / 2f, worldHeight / 2f, 0);
-        fboCamera.update();
-
-        // 1. Создаем паутину
-        Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
-        spiderWeb = new SpiderWeb(world, webCenter, 8f, 12, 8, 2);
-
-        // 2. Инициализируем FrameBuffer
-        fbo = new FrameBuffer(Pixmap.Format.RGBA8888, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, false);
-        fbo.getColorBufferTexture().setFilter(
-            com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest,
-            com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest
-        );
 
         com.artemis.WorldConfiguration config = new com.artemis.WorldConfigurationBuilder()
             .with(new TagManager())
             .with(new PlayerInputSystem())
-            .with(new PhysicsSystem(world))
+            .with(new WindSystem())
+            .with(new PhysicsSystem())
             .with(new WebContactListener())
+            .with(new RenderSystem(
+                viewport,
+                camera,
+                Constants.VIRTUAL_WIDTH,
+                Constants.VIRTUAL_HEIGHT,
+                Constants.WORLD_WIDTH,
+                worldHeight
+            ))
             .build();
         artemisWorld = new com.artemis.World(config);
 
-
-        // ====================================================
-        // 5. СОЗДАЕМ СУЩНОСТЬ ИГРОКА В ECS
-        // ====================================================
-        createPlayer();
+        SpiderWeb spiderWeb = createSpiderWeb(worldHeight);
+        createPlayer(spiderWeb);
     }
 
-    private void createPlayer() {
-        BodyDef pDef = new BodyDef();
-        pDef.type = BodyDef.BodyType.DynamicBody; // Честное динамическое тело
+    private SpiderWeb createSpiderWeb(float worldHeight) {
+        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
+
+        Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
+        SpiderWeb spiderWeb = new SpiderWeb(box2dWorld, webCenter, 8f, 12, 8, 3);
+
+        int webEntityId = artemisWorld.create();
+        RenderComponent webRender = artemisWorld.getMapper(RenderComponent.class).create(webEntityId);
+        webRender.layer = 0;            // Паутина строго под жуком
+        webRender.renderer = spiderWeb; // Сам объект паутины выступает в роли отрисовщика
+
+        artemisWorld.getSystem(TagManager.class).register(Tags.WEB, webEntityId);
+
+        return spiderWeb;
+    }
+
+    private void createPlayer(SpiderWeb spiderWeb) {
+        int segmentCount = 3;
+        Body[] segments = new Body[segmentCount];
 
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
-        pDef.position.set(startSegmentBody.getPosition());
-        playerBody = world.createBody(pDef);
-
-        CircleShape playerShape = new CircleShape();
-        playerShape.setRadius(0.25f);
-        FixtureDef pFixture = new FixtureDef();
-        pFixture.shape = playerShape;
-        pFixture.density = 0.5f; // Легкий как пушинка
-        pFixture.filter.groupIndex = -1; // Отключаем коллизии со звеньями
-        pFixture.isSensor = true;
-        playerBody.createFixture(pFixture);
-        playerShape.dispose();
+        Vector2 startPos = startSegmentBody.getPosition();
 
         int entityId = artemisWorld.create();
+
+        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
+        // 1. СОЗДАЕМ ТЕЛА И ПРИВЯЗЫВАЕМ USER DATA (Ваш код)
+        for (int i = 0; i < segmentCount; i++) {
+            BodyDef pDef = new BodyDef();
+            pDef.type = BodyDef.BodyType.DynamicBody;
+            pDef.position.set(startPos.x - (i * 0.4f), startPos.y);
+            pDef.linearDamping = 1.0f;
+
+            Body segBody = box2dWorld.createBody(pDef);
+            segBody.setUserData(entityId);
+
+            CircleShape playerShape = new CircleShape();
+            playerShape.setRadius(0.20f - (i * 0.03f));
+
+            FixtureDef pFixture = new FixtureDef();
+            pFixture.shape = playerShape;
+            pFixture.density = 0.5f;
+            pFixture.filter.groupIndex = -1;
+            pFixture.isSensor = true;
+
+            segBody.createFixture(pFixture);
+            playerShape.dispose();
+
+            segments[i] = segBody;
+        }
+
+        // 2. СВЯЗЫВАЕМ СЕГМЕНТЫ СУСТАВАМИ (Ваш код)
+        for (int i = 0; i < segmentCount - 1; i++) {
+            Body bodyA = segments[i];
+            Body bodyB = segments[i + 1];
+
+            RevoluteJointDef jointDef = new RevoluteJointDef();
+            Vector2 anchor = new Vector2(
+                (bodyA.getPosition().x + bodyB.getPosition().x) / 2f,
+                (bodyA.getPosition().y + bodyB.getPosition().y) / 2f
+            );
+            jointDef.initialize(bodyA, bodyB, anchor);
+            jointDef.collideConnected = false;
+            jointDef.enableLimit = true;
+            jointDef.lowerAngle = -0.5f;
+            jointDef.upperAngle = 0.5f;
+
+            box2dWorld.createJoint(jointDef);
+        }
+
+        // 3. ЗАПОЛНЯЕМ СТАНДАРТНЫЕ КОМПОНЕНТЫ (Ваш код)
         PlayerComponent playerComp = artemisWorld.getMapper(PlayerComponent.class).create(entityId);
         PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
 
-        // Передаем физическое тело самого жука (Кинематическое)
-        physicsComp.body = playerBody;
-
-        // НАМЕРТВО ЗАПИСЫВАЕМ СТАРТОВОЕ ТЕЛО В КОМПОНЕНТ (Жук поймет, на каких он рельсах!)
+        physicsComp.body = segments[0];
+        playerComp.bodySegments = segments;
         playerComp.currentSegmentBody = startSegmentBody;
         playerComp.entityId = entityId;
 
-        // Создаем стартовое намерение, чтобы PhysicsSystem сама собрала первый сустав
+        // ====================================================
+        // ШАГ 4 (NEW): ПОДКЛЮЧАЕМ СЛОЙ ОТРИСОВКИ И ИНТЕРФЕЙС ИГРОКА
+        // ====================================================
+        RenderComponent playerRenderComp = artemisWorld.getMapper(RenderComponent.class).create(entityId);
+        playerRenderComp.layer = 1; // Рисуем ПОВЕРХ паутины (слой 1)
+        playerRenderComp.renderer = new CaterpillarRenderer(segments); // Передаем кастомный отрисовщик
+
+        // 5. ИНТЕНТЫ ПРИВЯЗКИ (Ваш код)
         PrismaticRebindIntent startIntent = artemisWorld.getMapper(PrismaticRebindIntent.class).create(entityId);
-        startIntent.bodyToBind = playerBody;
+        startIntent.bodyToBind = segments[0];
         startIntent.targetSegmentBody = startSegmentBody;
 
-        artemisWorld.getSystem(TagManager.class).register("PLAYER", entityId);
+        artemisWorld.getSystem(TagManager.class).register(Tags.PLAYER, entityId);
     }
 
     @Override
     public void render() {
         float delta = Gdx.graphics.getDeltaTime();
-        time += delta;
-
-        // ====================================================
-        // ШАГ 1: ВСЕ РАСЧЕТЫ И СИМУЛЯЦИЯ (До какой-либо отрисовки)
-        // ====================================================
-
-        // Симуляция ветра (применяем силы до шага физики)
-        float windForce = (float) Math.sin(time * 2.5f) * 1.4f; // float windForce = (float) Math.sin(time * 4.5f) * 3.4f;
-        spiderWeb.applyWind(windForce, 0);
-
-        // Запускаем Artemis ECS (включая PlayerInputSystem, которая считает скорость,
-        // и PhysicsSystem, которая делает world.step())
         artemisWorld.setDelta(delta);
         artemisWorld.process();
-
-        // ====================================================
-        // ШАГ 2: ЭТАП 1 — Рисуем ВСЁ внутри пиксельного FrameBuffer
-        // ====================================================
-        fbo.begin();
-        Gdx.gl.glViewport(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-        Gdx.gl.glClearColor(0.05f, 0.05f, 0.05f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        // Синхронизируем и обновляем пиксельную камеру по результатам прошедшего шага физики
-        fboCamera.update();
-        shapeRenderer.setProjectionMatrix(fboCamera.combined);
-
-        // Рисуем паутину
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        shapeRenderer.setColor(0.8f, 0.8f, 0.8f, 1f);
-        spiderWeb.render(shapeRenderer);
-
-        // Рисуем ОДНОГО ЕДИНСТВЕННОГО пиксельного жука
-        shapeRenderer.setColor(1.0f, 1.0f, 1.0f, 1f);
-        Vector2 pPos = playerBody.getPosition();
-        shapeRenderer.circle(pPos.x, pPos.y, 0.3f, 8);
-
-        shapeRenderer.end();
-
-        fbo.end();
-
-        // ====================================================
-        // ШАГ 3: ЭТАП 2 — Выводим готовую пиксельную картинку на экран
-        // ====================================================
-        Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
-        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        viewport.apply();
-        camera.update();
-        spriteBatch.setProjectionMatrix(camera.combined);
-
-        spriteBatch.begin();
-        spriteBatch.draw(
-            fbo.getColorBufferTexture(),
-            0, 0,
-            viewport.getWorldWidth(), viewport.getWorldHeight(),
-            0, 0,
-            fbo.getWidth(), fbo.getHeight(),
-            false, true // Переворачиваем текстуру FBO по вертикали
-        );
-        spriteBatch.end();
-
-        //debugRenderer.render(world, camera.combined);
     }
 
     @Override
@@ -210,11 +175,7 @@ public class Main implements ApplicationListener {
 
     @Override
     public void dispose() {
-        world.dispose();
-        debugRenderer.dispose();
-        shapeRenderer.dispose();
-        spriteBatch.dispose();
-        fbo.dispose();
+        artemisWorld.dispose();
     }
 
 }

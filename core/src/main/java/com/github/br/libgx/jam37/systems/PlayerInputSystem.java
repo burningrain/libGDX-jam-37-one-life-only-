@@ -9,7 +9,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
-import com.github.br.libgx.jam37.components.PlayerComponent;
+import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 
 @All({PlayerComponent.class, PhysicsComponent.class})

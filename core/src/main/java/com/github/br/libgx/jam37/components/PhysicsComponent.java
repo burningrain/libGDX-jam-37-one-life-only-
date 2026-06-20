@@ -8,6 +8,6 @@ public class PhysicsComponent extends Component {
 
     public Body body;
     public PrismaticJoint crawlJoint;   // Живой сустав-рельс, на котором сейчас
-    public float crawlSpeed = 4.0f;   // Скорость ползания жука (метров в секунду)
+    public float crawlSpeed = 4.0f;     // Скорость ползания жука (метров в секунду)
 
 }
