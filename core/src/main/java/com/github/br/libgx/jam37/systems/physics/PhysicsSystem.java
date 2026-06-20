@@ -3,14 +3,17 @@ package com.github.br.libgx.jam37.systems.physics;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
+import com.github.br.libgx.jam37.systems.render.RenderSystem;
 
 public class PhysicsSystem extends BaseSystem {
 
@@ -75,18 +78,16 @@ public class PhysicsSystem extends BaseSystem {
                 }
             }
         } else {
-            // На случай первой инициализации создаем массив для трех суставов
             physics.crawlJoints = new PrismaticJoint[length];
         }
 
-        // 2. Последовательно пересобираем суставы для Головы (0), Тела (1) и Хвоста (2)
+        // 2. Последовательно пересобираем суставы
         for (int i = 0; i < length; i++) {
             Body targetBody = intent.targetSegmentBodies[i];
             Body playerSegment = intent.bodiesToBind[i];
             Vector2 axis = intent.calculatedWorldAxes[i];
             float halfLength = intent.calculatedHalfLengths[i];
 
-            // Находим проекцию и выравниваем строго по вашему алгоритму
             Vector2 targetPos = targetBody.getPosition();
             Vector2 toPlayer = new Vector2(playerSegment.getPosition()).sub(targetPos);
             float distanceAlongAxis = toPlayer.dot(axis);
@@ -94,30 +95,25 @@ public class PhysicsSystem extends BaseSystem {
 
             playerSegment.setTransform(snapPosition.x, snapPosition.y, playerSegment.getAngle());
 
-            // Чистая сборка сустава (настройки сохранены один в один)
             PrismaticJointDef jointDef = new PrismaticJointDef();
             jointDef.initialize(targetBody, playerSegment, snapPosition, axis);
             jointDef.enableMotor = true;
-            jointDef.maxMotorForce = 100.0f; // Сохранено
-            jointDef.motorSpeed = 0f;        // Сохранено
+            jointDef.maxMotorForce = 100.0f;
+            jointDef.motorSpeed = 0f;
             jointDef.collideConnected = false;
 
-            // Применяем лимиты, переданные снаружи (Сохранено)
+            jointDef.enableLimit = true;
             if (i == 0) {
-                jointDef.enableLimit = true;
                 jointDef.lowerTranslation = -halfLength - distanceAlongAxis - 0.1f;
                 jointDef.upperTranslation = halfLength - distanceAlongAxis + 0.1f;
             } else {
-                jointDef.enableLimit = true;
                 jointDef.lowerTranslation = -halfLength - distanceAlongAxis;
                 jointDef.upperTranslation = halfLength - distanceAlongAxis;
             }
 
-            // Создаем сустав и записываем в массив под соответствующим индексом
             physics.crawlJoints[i] = (PrismaticJoint) world.createJoint(jointDef);
         }
 
-        // Запоминаем текущую корневую нить паутины, на которой стоит именно Голова (индекс 0)
         player.currentSegmentBody = intent.targetSegmentBodies[0];
     }
 

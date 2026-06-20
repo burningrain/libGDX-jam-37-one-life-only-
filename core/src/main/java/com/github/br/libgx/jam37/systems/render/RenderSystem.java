@@ -11,6 +11,9 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
+import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.RenderComponent;
 
@@ -33,7 +36,13 @@ public class RenderSystem extends BaseSystem {
     private final Comparator<Integer> layerComparator = (e1, e2) ->
         Integer.compare(renderMapper.get(e1).layer, renderMapper.get(e2).layer);
 
+    // Вводим дебажный рендерер Box2D
+    private Box2DDebugRenderer debugRenderer;
+    private final World box2dWorld;
+    private boolean isDebugBox2d = false;
+
     public RenderSystem(
+        World box2dWorld,
         Viewport viewport,
         OrthographicCamera camera,
         int virtualWidth,
@@ -41,11 +50,14 @@ public class RenderSystem extends BaseSystem {
         float worldWidth,
         float worldHeight
     ) {
+        this.box2dWorld = box2dWorld;
         this.viewport = viewport;
         this.camera = camera;
         this.virtualWidth = virtualWidth;
         this.virtualHeight = virtualHeight;
         this.shapeRenderer = new ShapeRenderer();
+        this.shapeRenderer.setAutoShapeType(true);
+
         this.spriteBatch = new SpriteBatch();
 
         // 1. ИСПРАВЛЕНО: Для 2D-игры настраиваем камеру через проверенный setToOrtho(false)
@@ -60,10 +72,31 @@ public class RenderSystem extends BaseSystem {
         // Инициализация буфера
         this.fbo = new FrameBuffer(Pixmap.Format.RGBA8888, virtualWidth, virtualHeight, false);
         this.fbo.getColorBufferTexture().setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+
+
+        // Создаем дебажный рендерер при инициализации системы
+        this.debugRenderer = new Box2DDebugRenderer();
+
+        // Настраиваем дебажные флаги (можно отключать ненужное)
+        this.debugRenderer.setDrawBodies(true);   // Контуры тел
+        this.debugRenderer.setDrawJoints(true);   // Суставы (отлично покажет рельсы призматических джоинтов)
+        this.debugRenderer.setDrawAABBs(false);   // Хитбоксы оптимизации (обычно не нужны)
+        this.debugRenderer.setDrawInactiveBodies(false);
+        this.debugRenderer.setDrawVelocities(false);
     }
 
     @Override
     protected void processSystem() {
+        if(isDebugBox2d) {
+            Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+            viewport.apply();
+            camera.update();
+            debugRenderer.render(box2dWorld, camera.combined);
+            return;
+        }
+
         // Сортировка слоев через ECS
         sortedEntities.clear();
         IntBag actives = world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(RenderComponent.class)).getEntities();
@@ -82,8 +115,6 @@ public class RenderSystem extends BaseSystem {
 
         fboCamera.update();
         shapeRenderer.setProjectionMatrix(fboCamera.combined);
-
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         for (int entityId : sortedEntities) {
             RenderComponent rComp = renderMapper.get(entityId);
             if (rComp.renderer != null) {
@@ -127,5 +158,17 @@ public class RenderSystem extends BaseSystem {
         shapeRenderer.dispose();
         spriteBatch.dispose();
         fbo.dispose();
+
+        debugRenderer.dispose();
     }
+
+    public boolean isDebugBox2d() {
+        return isDebugBox2d;
+    }
+
+    public RenderSystem setDebugBox2d(boolean debugBox2d) {
+        isDebugBox2d = debugBox2d;
+        return this;
+    }
+
 }

@@ -38,25 +38,28 @@ public class Main implements ApplicationListener {
         camera.position.set(Constants.WORLD_WIDTH / 2f, worldHeight / 2f, 0);
         camera.update();
 
+        PhysicsSystem physicsSystem = new PhysicsSystem();
+
         com.artemis.WorldConfiguration config = new com.artemis.WorldConfigurationBuilder()
             .with(new TagManager())
             .with(new PlayerInputSystem())
             .with(new WindSystem())
-            .with(new PhysicsSystem())
+            .with(physicsSystem)
             .with(new WebContactListener())
             .with(new RenderSystem(
+                physicsSystem.getBox2dWorld(),
                 viewport,
                 camera,
                 Constants.VIRTUAL_WIDTH,
                 Constants.VIRTUAL_HEIGHT,
                 Constants.WORLD_WIDTH,
                 worldHeight
-            ))
+            ).setDebugBox2d(false))
             .build();
         artemisWorld = new com.artemis.World(config);
 
         SpiderWeb spiderWeb = createSpiderWeb(worldHeight);
-        createPlayer(4, spiderWeb);
+        createPlayer(5, spiderWeb);
     }
 
     private SpiderWeb createSpiderWeb(float worldHeight) {

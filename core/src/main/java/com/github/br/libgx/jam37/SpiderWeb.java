@@ -296,6 +296,8 @@ public class SpiderWeb implements Renderable {
     /*** Отрисовка паутины строго вдоль локальных осей деформированных тел без спама в GC*/
     @Override
     public void draw(ShapeRenderer shapeRenderer) {
+        shapeRenderer.setColor(Constants.WEB_COLOR);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         for (int i = 0; i < allSegments.size; i++) {
             Body segment = allSegments.get(i);
             float halfLength = segmentLengths.get(i) / 2f;
