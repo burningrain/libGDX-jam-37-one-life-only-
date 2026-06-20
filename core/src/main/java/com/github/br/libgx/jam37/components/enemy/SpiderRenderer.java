@@ -37,21 +37,16 @@ public class SpiderRenderer implements Renderable {
 
         for (int i = 0; i < 8; i++) {
             int configIdx = i % 4;
-            boolean isLeft = (i < 4);
 
-            // Берем настраиваемые тобой параметры костей
+            // Читаем длины из конфига
             float fLen = spider.femurLengthConfig[configIdx];
             float tLen = spider.tibiaLengthConfig[configIdx];
 
-            float fAng = spider.femurAngleConfig[configIdx];
-            float tAng = spider.tibiaAngleConfig[configIdx];
+            // ИСПРАВЛЕНО: Читаем ЖИВЫЕ, ЛЕРПЯЩИЕСЯ углы из системы анимации!
+            float fAng = spider.currentFemurAngles[i];
+            float tAng = spider.currentTibiaAngles[i];
 
-            if (isLeft) {
-                fAng = -fAng;
-                tAng = -tAng;
-            }
-
-            // Считаем цепочку углов в пространстве
+            // Накапливаем мировые углы относительно поворота тела паука
             float currentWorldFemurAngle = bodyAngleDeg + fAng;
             float currentWorldTibiaAngle = currentWorldFemurAngle + tAng;
 
@@ -61,19 +56,19 @@ public class SpiderRenderer implements Renderable {
             // Корень лапы на краю диска головогруди
             legRoot.set((float)Math.cos(fRad), (float)Math.sin(fRad)).scl(prosomaRadius).add(prosomaPos);
 
-            // СУСТАВ 1: Конец Бедра / Начало Голени
+            // СУСТАВ 1: Колено бедра (Femur -> Tibia) — теперь оно плавно колышется вверх-вниз!
             joint1.set(legRoot).add((float)Math.cos(fRad) * fLen, (float)Math.sin(fRad) * fLen);
 
-            // СУСТАВ 2: Конец Голени / Начало Лапки
+            // СУСТАВ 2: Колено голени (Tibia -> Tarsus)
             joint2.set(joint1).add((float)Math.cos(tRad) * tLen, (float)Math.sin(tRad) * tLen);
 
-            // ТОЧКА СТУПНИ: Её позицию мы берем из живого шагающего массива currentFootPos
+            // Точка касания паутины
             Vector2 currentFoot = spider.currentFootPos[i];
 
-            // Рисуем 3 честных анатомических членика
-            shapeRenderer.line(legRoot.x, legRoot.y, joint1.x, joint1.y); // Бедро
-            shapeRenderer.line(joint1.x, joint1.y, joint2.x, joint2.y);   // Голень
-            shapeRenderer.line(joint2.x, joint2.y, currentFoot.x, currentFoot.y); // Лапка (Кончик)
+            // Рисуем 3 живых сочленения
+            shapeRenderer.line(legRoot.x, legRoot.y, joint1.x, joint1.y);
+            shapeRenderer.line(joint1.x, joint1.y, joint2.x, joint2.y);
+            shapeRenderer.line(joint2.x, joint2.y, currentFoot.x, currentFoot.y);
         }
         com.badlogic.gdx.Gdx.gl.glLineWidth(1f);
 

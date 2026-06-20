@@ -343,6 +343,8 @@ public class Main implements ApplicationListener {
             // ИСПРАВЛЕНО: Честно считаем финальную точку ступни от края головогруди (prosomaRadius) по цепочке костей
             float footX = spawnPos.x + (float)Math.cos(fRad) * (prosomaRadius + fLen) + (float)Math.cos(tRad) * tLen + (float)Math.cos(tarsRad) * tarsLen;
             float footY = spawnPos.y + (float)Math.sin(fRad) * (prosomaRadius + fLen) + (float)Math.sin(tRad) * tLen + (float)Math.sin(tarsRad) * tarsLen;
+            spiderComp.currentFemurAngles[i] = isLeft ? -fAng : fAng;
+            spiderComp.currentTibiaAngles[i] = isLeft ? -tAng : tAng;
 
             // Намертво записываем координаты старта в массивы (лапы не будут лететь из нуля!)
             spiderComp.targetFootPos[i].set(footX, footY);

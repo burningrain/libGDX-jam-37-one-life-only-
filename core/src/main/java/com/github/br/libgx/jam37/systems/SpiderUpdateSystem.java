@@ -85,61 +85,87 @@ public class SpiderUpdateSystem extends IteratingSystem {
         }
 
         // ====================================================
-        // 2. РАСЧЕТ ИДЕАЛЬНОЙ СТУПНИ ИЗ ПРЯМОЙ КИНЕМАТИКИ СУСТАВОВ
+        // 2. ИСПРАВЛЕНО: ШАГ ПАУКА С НАСТРАИВАЕМОЙ АМПЛИТУДОЙ
         // ====================================================
+        spider.speed = 2.5f; // Физическая скорость бега паука
+        float currentSpeed = prosomaBody.getLinearVelocity().len();
+
+        // Частота замахов (фиксированная, неторопливая и плавная)
+        float stepFrequency = spider.speed * 3f;
+
         for (int i = 0; i < 8; i++) {
             spider.legTimers[i] += dt;
             int configIdx = i % 4;
             boolean isLeft = (i < 4);
 
-            // Читаем длины костей из конфига
+            // 1. Извлекаем длины и углы из твоих конфигов
             float fLen = spider.femurLengthConfig[configIdx];
             float tLen = spider.tibiaLengthConfig[configIdx];
             float tarsLen = spider.tarsusLengthConfig[configIdx];
 
-            // Читаем и выстраиваем углы суставов по цепочке
-            float fAng = spider.femurAngleConfig[configIdx];
-            float tAng = spider.tibiaAngleConfig[configIdx];
-            float tarsAng = spider.tarsusAngleConfig[configIdx];
+            float targetFemurAng = spider.femurAngleConfig[configIdx];
+            float targetTibiaAng = spider.tibiaAngleConfig[configIdx];
+            float targetTarsusAng = spider.tarsusAngleConfig[configIdx];
 
-            // Если нога левая — зеркально инвертируем все знаки углов наружу/вовнутри
             if (isLeft) {
-                fAng = -fAng;
-                tAng = -tAng;
-                tarsAng = -tarsAng;
+                targetFemurAng = -targetFemurAng;
+                targetTibiaAng = -targetTibiaAng;
+                targetTarsusAng = -targetTarsusAng;
             }
 
-            // Абсолютные мировые углы каждого сустава в пространстве
-            float currentWorldFemurAngle = bodyAngle + fAng;
-            float currentWorldTibiaAngle = currentWorldFemurAngle + tAng;
-            float currentWorldTarsusAngle = currentWorldTibiaAngle + tarsAng;
+            // 2. МАТЕМАТИКА НАСТОЯЩЕГО ПАУЧЬЕГО ШАГА (ПЕРЕКРЕСТНЫЕ ГРУППЫ)
+            float waveTimer = spider.legTimers[i] * stepFrequency;
 
-            // Считаем финальную точку ступни, складывая сдвиги трех члеников
-            float fRad = (float) Math.toRadians(currentWorldFemurAngle);
-            float tRad = (float) Math.toRadians(currentWorldTibiaAngle);
-            float tarsRad = (float) Math.toRadians(currentWorldTarsusAngle);
+            // Распределение по природным группам А и Б
+            boolean isGroupA = (isLeft && (configIdx == 0 || configIdx == 2)) || (!isLeft && (configIdx == 1 || configIdx == 3));
+            if (!isGroupA) {
+                waveTimer += (float) Math.PI;
+            }
+
+            // ИСПРАВЛЕНО: Читаем ЖИВЫЕ параметры амплитуды из твоей панели настроек в компоненте!
+            float femurLiftMax = spider.femurAmplitudeConfig[configIdx];
+            float tibiaLiftMax = spider.tibiaAmplitudeConfig[configIdx];
+
+            if (currentSpeed > 0.1f) {
+                // Бедро качается по синусу
+                float femurWave = (float) Math.sin(waveTimer);
+                targetFemurAng += femurWave * femurLiftMax;
+
+                // Голень работает со сдвигом фазы (cos вместо sin) — волна от бедра к носку
+                float tibiaWave = (float) Math.cos(waveTimer);
+
+                if (isLeft) {
+                    targetTibiaAng -= (tibiaWave) * tibiaLiftMax;
+                } else {
+                    targetTibiaAng += (tibiaWave) * tibiaLiftMax;
+                }
+            }
+
+            // 3. ПЛАВНЫЙ И КИНЕМАТОГРАФИЧНЫЙ ЛЕРП ДЛЯ ИНЕРЦИИ КОСТЕЙ
+            spider.currentFemurAngles[i] = com.badlogic.gdx.math.MathUtils.lerp(spider.currentFemurAngles[i], targetFemurAng, 0.25f);
+            spider.currentTibiaAngles[i] = com.badlogic.gdx.math.MathUtils.lerp(spider.currentTibiaAngles[i], targetTibiaAng, 0.15f);
+
+            // 4. ТРИГОНОМЕТРИЧЕСКИЙ СБОР КООРДИНАТ СТУПНИ
+            float worldFemur = bodyAngle + spider.currentFemurAngles[i];
+            float worldTibia = worldFemur + spider.currentTibiaAngles[i];
+            float worldTarsus = worldTibia + targetTarsusAng;
+
+            float fRad = (float) Math.toRadians(worldFemur);
+            float tRad = (float) Math.toRadians(worldTibia);
+            float tarsRad = (float) Math.toRadians(worldTarsus);
 
             float footX = prosomaPos.x + (float)Math.cos(fRad)*fLen + (float)Math.cos(tRad)*tLen + (float)Math.cos(tarsRad)*tarsLen;
             float footY = prosomaPos.y + (float)Math.sin(fRad)*fLen + (float)Math.sin(tRad)*tLen + (float)Math.sin(tarsRad)*tarsLen;
 
             spider.targetFootPos[i].set(footX, footY);
 
-            // Фича магнитного прилипания к нитям паутины
+            // Прилипание к нитям паутины
             if (cachedSpiderWeb != null) {
                 snapToNearestWebSegment(spider.targetFootPos[i], cachedSpiderWeb.getAllSegments());
             }
 
-            // Логика Лерп-шага лап
-            float distanceToTarget = spider.currentFootPos[i].dst(spider.targetFootPos[i]);
-            boolean isLegTurnToMove = (i % 2 == 0)
-                ? (Math.sin(spider.legTimers[i] * 16f) > 0)
-                : (Math.sin(spider.legTimers[i] * 16f) < 0);
-
-            if (distanceToTarget > 0.4f && isLegTurnToMove) {
-                spider.currentFootPos[i].lerp(spider.targetFootPos[i], 0.35f);
-            } else {
-                spider.currentFootPos[i].lerp(spider.currentFootPos[i], 0.05f);
-            }
+            // Ступня плавно догоняет расчетную точку
+            spider.currentFootPos[i].lerp(spider.targetFootPos[i], 0.20f);
         }
     }
 
