@@ -88,8 +88,5 @@ public class CaterpillarRenderer implements Renderable {
 
         Vector2 tailPos = segments[count - 1].getPosition();
         shapeRenderer.circle(tailPos.x, tailPos.y, radii[count - 1], 8);
-
-        // КРИТИЧЕСКИ ВАЖНО: Возвращаем тип в Line, чтобы RenderSystem продолжила корректно рисовать паутину!
-        shapeRenderer.set(ShapeRenderer.ShapeType.Line);
     }
 }

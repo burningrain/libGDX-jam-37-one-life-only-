@@ -28,6 +28,10 @@ public class WebContactListener extends BaseSystem implements ContactListener {
     @Override
     public void beginContact(Contact contact) {
         int playerId = getPlayerId();
+        if (playerId == -1) {
+            return;
+        }
+
         PhysicsComponent playerPhysicsComponent = mPhysics.get(playerId);
         Body pBody = playerPhysicsComponent.body;
 
@@ -72,6 +76,10 @@ public class WebContactListener extends BaseSystem implements ContactListener {
     @Override
     public void endContact(Contact contact) {
         int playerId = getPlayerId();
+        if (playerId == -1) {
+            return;
+        }
+
         PhysicsComponent playerPhysicsComponent = mPhysics.get(playerId);
         Body pBody = playerPhysicsComponent.body;
 

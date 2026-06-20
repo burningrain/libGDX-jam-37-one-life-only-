@@ -7,14 +7,18 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
+import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.enemy.SpiderComponent;
+import com.github.br.libgx.jam37.components.enemy.SpiderRenderer;
 import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.PlayerInputSystem;
+import com.github.br.libgx.jam37.systems.SpiderUpdateSystem;
 import com.github.br.libgx.jam37.systems.WindSystem;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 import com.github.br.libgx.jam37.systems.physics.WebContactListener;
@@ -42,10 +46,19 @@ public class Main implements ApplicationListener {
 
         com.artemis.WorldConfiguration config = new com.artemis.WorldConfigurationBuilder()
             .with(new TagManager())
-            .with(new PlayerInputSystem())
-            .with(new WindSystem())
-            .with(physicsSystem)
+
+            // ПЕРВЫЙ ЭТАП: Сбор ввода игрока и логика ИИ (Определяем намерения)
+            .with(new PlayerInputSystem()) // Считывает кнопки, ставит скорость мотора головы
+            .with(new SpiderUpdateSystem()) // Считает ИИ паука, ставит скорость prosoma и двигает лапки
+
+            // ВТОРОЙ ЭТАП: Внешние физические силы (Прикладываем до шага Box2D)
+            .with(new WindSystem()) // Колышет нити, вызывая applyForce
+
+            // ТРЕТИЙ ЭТАП: Симуляция физического мира
+            .with(physicsSystem) // Делает world.step()
             .with(new WebContactListener())
+
+            // ЧЕТВЕРТЫЙ ЭТАП: Отрисовка (Забирает уже посчитанные на этом кадре координаты Box2D)
             .with(new RenderSystem(
                 physicsSystem.getBox2dWorld(),
                 viewport,
@@ -58,11 +71,17 @@ public class Main implements ApplicationListener {
             .build();
         artemisWorld = new com.artemis.World(config);
 
-        SpiderWeb spiderWeb = createSpiderWeb(worldHeight);
-        createPlayer(5, spiderWeb);
+        SpiderWeb spiderWeb = createWeb(worldHeight);
+        Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
+        Vector2 startPos = startSegmentBody.getPosition();
+
+        //createPlayer(5, startPos, spiderWeb);
+
+        Body spawnSegmentBody = spiderWeb.getAllSegments().get(12);
+        createSpider(spawnSegmentBody.getPosition());
     }
 
-    private SpiderWeb createSpiderWeb(float worldHeight) {
+    private SpiderWeb createWeb(float worldHeight) {
         World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
 
         Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
@@ -78,11 +97,10 @@ public class Main implements ApplicationListener {
         return spiderWeb;
     }
 
-    private void createPlayer(int segmentCount, SpiderWeb spiderWeb) {
-        Body[] segments = new Body[segmentCount];
-
+    private void createPlayer(int segmentCount, Vector2 startPos, SpiderWeb spiderWeb) {
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
-        Vector2 startPos = startSegmentBody.getPosition();
+
+        Body[] segments = new Body[segmentCount];
 
         int entityId = artemisWorld.create();
 
@@ -177,6 +195,155 @@ public class Main implements ApplicationListener {
         }
 
         artemisWorld.getSystem(TagManager.class).register(Tags.PLAYER, entityId);
+    }
+
+    private void createSpider(Vector2 spawnPos) {
+        int entityId = artemisWorld.create();
+
+        SpiderComponent spiderComp = artemisWorld.getMapper(SpiderComponent.class).create(entityId);
+        PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
+        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
+
+        // 1. СОЗДАЕМ ГОЛОВОГРУДЬ (Центральный узел)
+        BodyDef prosomaDef = new BodyDef();
+        prosomaDef.type = BodyDef.BodyType.DynamicBody;
+        prosomaDef.position.set(spawnPos);
+        prosomaDef.linearDamping = 15.0f;
+        prosomaDef.angularDamping = 3.0f;
+        spiderComp.prosoma = box2dWorld.createBody(prosomaDef);
+        spiderComp.prosoma.setUserData(entityId);
+
+        CircleShape prosomaShape = new CircleShape();
+        prosomaShape.setRadius(0.35f); // Головогрудь чуть меньше брюшка
+        FixtureDef prosomaFix = new FixtureDef();
+        prosomaFix.shape = prosomaShape;
+        prosomaFix.density = 0.1f;
+        prosomaFix.filter.groupIndex = -1; // Не сталкивается со своими частями и игроком
+        spiderComp.prosoma.createFixture(prosomaFix);
+        prosomaShape.dispose();
+
+        // Ведущим телом для базовых ECS систем оставляем головогрудь
+        physicsComp.body = spiderComp.prosoma;
+
+        // 2. СОЗДАЕМ БРЮШКО (Сзади головогруди)
+        BodyDef opisthoDef = new BodyDef();
+        opisthoDef.type = BodyDef.BodyType.DynamicBody;
+        opisthoDef.position.set(spawnPos.x - 0.90f, spawnPos.y); // Было -0.7f
+        opisthoDef.linearDamping = 4.0f;
+        opisthoDef.angularDamping = 4.0f;
+        spiderComp.opisthosoma = box2dWorld.createBody(opisthoDef);
+        spiderComp.opisthosoma.setUserData(entityId);
+
+        CircleShape opisthoShape = new CircleShape();
+        opisthoShape.setRadius(0.55f); // Брюшко крупное, каплевидное
+        FixtureDef opisthoFix = new FixtureDef();
+        opisthoFix.shape = opisthoShape;
+        opisthoFix.density = 0.1f; // Брюшко тяжелое, дает инерцию
+        opisthoFix.filter.groupIndex = -1;
+        spiderComp.opisthosoma.createFixture(opisthoFix);
+        opisthoShape.dispose();
+
+        // Соединяем Головогрудь и Брюшко (Стебельчатый сустав)
+        RevoluteJointDef waistJoint = new RevoluteJointDef();
+        Vector2 waistAnchor = new Vector2(spawnPos.x - 0.35f, spawnPos.y); // Теперь это идеальная точка касания!
+        waistJoint.initialize(spiderComp.prosoma, spiderComp.opisthosoma, waistAnchor);
+        waistJoint.enableLimit = true;
+        waistJoint.lowerAngle = -0.3f;
+        waistJoint.upperAngle = 0.3f;
+        box2dWorld.createJoint(waistJoint);
+
+        // 3. СОЗДАЕМ ХЕЛИЦЕРЫ (Две маленькие челюсти спереди)
+        float[] sideMultipliers = {-1f, 1f};
+        Body[] chelicerae = new Body[2];
+
+        for (int i = 0; i < 2; i++) {
+            BodyDef chelDef = new BodyDef();
+            chelDef.type = BodyDef.BodyType.DynamicBody;
+            chelDef.position.set(spawnPos.x + 0.4f, spawnPos.y + (0.15f * sideMultipliers[i]));
+            chelDef.linearDamping = 1.0f;
+            chelDef.angularDamping = 5.0f;
+
+            Body chelBody = box2dWorld.createBody(chelDef);
+            chelBody.setUserData(entityId);
+
+            PolygonShape chelShape = new PolygonShape();
+            // Маленькие вытянутые клинья-клешни
+            chelShape.setAsBox(0.15f, 0.08f, new Vector2(0, 0), 0);
+            FixtureDef chelFix = new FixtureDef();
+            chelFix.shape = chelShape;
+            chelFix.density = 0.5f;
+            chelFix.filter.groupIndex = -1;
+            chelBody.createFixture(chelFix);
+            chelShape.dispose();
+            chelicerae[i] = chelBody;
+
+            // Пришиваем челюсть к передней части головы
+            RevoluteJointDef chelJoint = new RevoluteJointDef();
+            Vector2 chelAnchor = new Vector2(spawnPos.x + 0.35f, spawnPos.y + (0.15f * sideMultipliers[i]));
+            chelJoint.initialize(spiderComp.prosoma, chelBody, chelAnchor);
+            chelJoint.enableLimit = true;
+            // Челюсти могут немного двигаться внутрь/наружу, создавая эффект жевания
+            chelJoint.lowerAngle = -0.2f;
+            chelJoint.upperAngle = 0.2f;
+            box2dWorld.createJoint(chelJoint);
+        }
+        spiderComp.cheliceraLeft = chelicerae[0];
+        spiderComp.cheliceraRight = chelicerae[1];
+
+        // Устанавливаем челюсти в компонент
+        spiderComp.cheliceraLeft = chelicerae[0];
+        spiderComp.cheliceraRight = chelicerae[1];
+
+        // =========================================================================
+        // ИСПРАВЛЕНО: ЧИСТЫЙ СКЕЛЕТНЫЙ РАСЧЕТ ДЛЯ СТАРТА ИГРЫ (БЕЗ ВЫЗОВА СИСТЕМ)
+        // =========================================================================
+        float bodyAngleDeg = (float) Math.toDegrees(spiderComp.prosoma.getAngle());
+        float prosomaRadius = 0.35f;
+
+        for (int i = 0; i < 8; i++) {
+            int configIdx = i % 4;
+            boolean isLeft = (i < 4);
+
+            // Читаем длины костей из конфига компонента
+            float fLen = spiderComp.femurLengthConfig[configIdx];
+            float tLen = spiderComp.tibiaLengthConfig[configIdx];
+            float tarsLen = spiderComp.tarsusLengthConfig[configIdx];
+
+            // Читаем углы члеников
+            float fAng = spiderComp.femurAngleConfig[configIdx];
+            float tAng = spiderComp.tibiaAngleConfig[configIdx];
+            float tarsAng = spiderComp.tarsusAngleConfig[configIdx];
+
+            // Зеркалируем левую сторону
+            if (isLeft) {
+                fAng = -fAng;
+                tAng = -tAng;
+                tarsAng = -tarsAng;
+            }
+
+            // Вычисляем абсолютные мировые углы суставов для стартовой позиции
+            float worldFemurAngle = bodyAngleDeg + fAng;
+            float worldTibiaAngle = worldFemurAngle + tAng;
+            float worldTarsusAngle = worldTibiaAngle + tarsAng;
+
+            // Переводим в радианы для тригонометрии Math.cos / Math.sin
+            float fRad = (float) Math.toRadians(worldFemurAngle);
+            float tRad = (float) Math.toRadians(worldTibiaAngle);
+            float tarsRad = (float) Math.toRadians(worldTarsusAngle);
+
+            // ИСПРАВЛЕНО: Честно считаем финальную точку ступни от края головогруди (prosomaRadius) по цепочке костей
+            float footX = spawnPos.x + (float)Math.cos(fRad) * (prosomaRadius + fLen) + (float)Math.cos(tRad) * tLen + (float)Math.cos(tarsRad) * tarsLen;
+            float footY = spawnPos.y + (float)Math.sin(fRad) * (prosomaRadius + fLen) + (float)Math.sin(tRad) * tLen + (float)Math.sin(tarsRad) * tarsLen;
+
+            // Намертво записываем координаты старта в массивы (лапы не будут лететь из нуля!)
+            spiderComp.targetFootPos[i].set(footX, footY);
+            spiderComp.currentFootPos[i].set(footX, footY);
+        }
+
+        // Подключаем рендеринг (Слой 2 — без изменений)
+        RenderComponent renderComp = artemisWorld.getMapper(RenderComponent.class).create(entityId);
+        renderComp.layer = 2;
+        renderComp.renderer = new SpiderRenderer(spiderComp);
     }
 
     @Override
