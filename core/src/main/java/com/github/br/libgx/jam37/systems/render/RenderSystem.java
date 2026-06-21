@@ -8,18 +8,19 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
 import com.badlogic.gdx.physics.box2d.World;
-import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import com.github.br.libgx.jam37.EntityFactory;
 import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 
 public class RenderSystem extends BaseSystem {
@@ -43,7 +44,8 @@ public class RenderSystem extends BaseSystem {
     private boolean isDebugBox2d = false;
 
     private ShaderProgram crtShader;
-    private float time = 0f;
+
+    private final HUD hud;
 
     public RenderSystem(
         World box2dWorld,
@@ -100,6 +102,8 @@ public class RenderSystem extends BaseSystem {
         }
 
         spriteBatch.setShader(crtShader);
+
+        hud = new HUD(virtualWidth, virtualHeight);
     }
 
     @Override
@@ -107,7 +111,6 @@ public class RenderSystem extends BaseSystem {
         if(isDebugBox2d) {
             Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
             Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
             viewport.apply();
             camera.update();
             debugRenderer.render(box2dWorld, camera.combined);
@@ -131,6 +134,8 @@ public class RenderSystem extends BaseSystem {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         fboCamera.update();
+
+        // 1. Отрисовка геометрии мира
         shapeRenderer.setProjectionMatrix(fboCamera.combined);
         for (int entityId : sortedEntities) {
             RenderComponent rComp = renderMapper.get(entityId);
@@ -139,38 +144,46 @@ public class RenderSystem extends BaseSystem {
             }
         }
         shapeRenderer.end();
+
+        // 2. ОТРИСОВКА HUD (Внутри FBO со стандартным шейдером батча!)
+        GameParamsComponent gameParamsComponent = getWorld().getSystem(EntityFactory.class).getGameParamsComponent();
+        hud.render(spriteBatch, gameParamsComponent);
+
         fbo.end();
 
         // ====================================================
         // ШАГ 2: Апскейл FBO на физический экран через основную камеру
         // ====================================================
-
-        // Настраиваем glViewport видеокарты под размеры окна с учетом черных полос FitViewport
         viewport.apply();
 
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // ИСПРАВЛЕНО: Используем camera.combined игровой камеры, так как FitViewport
-        // завязан именно на её проекционную матрицу.
         camera.update();
         spriteBatch.setProjectionMatrix(camera.combined);
 
+        // УСТАНАВЛИВАЕМ ШЕЙДЕР CRT ТОЛЬКО ЗДЕСЬ
+        spriteBatch.setShader(crtShader);
         spriteBatch.begin();
-        // ИСПРАВЛЕНО: Рисуем текстуру, растягивая её строго на виртуальные МЕТРЫ вьюпорта.
-        // FitViewport сам отмасштабирует эти метры до физических пикселей монитора игрока.
+
         crtShader.setUniformf("u_resolution", virtualWidth, virtualHeight);
-        crtShader.setUniformf("u_time", time);
+        // Добавьте эту строку, если обновили фрагментный шейдер под анимацию мерцания/шума:
+        // crtShader.setUniformf("u_time", time);
+
         spriteBatch.draw(
             fbo.getColorBufferTexture(),
             0, 0,
             viewport.getWorldWidth(), viewport.getWorldHeight(),
             0, 0,
             fbo.getWidth(), fbo.getHeight(),
-            false, true // Переворот по Y обязателен для текстур FBO
+            false, true
         );
         spriteBatch.end();
+
+        // Сбрасываем шейдер в конце, чтобы не ломать другие системы или дебаг-рендер
+        spriteBatch.setShader(null);
     }
+
 
     @Override
     protected void dispose() {
@@ -179,6 +192,9 @@ public class RenderSystem extends BaseSystem {
         fbo.dispose();
 
         debugRenderer.dispose();
+
+        if (hud != null) hud.dispose();
+        if (crtShader != null) crtShader.dispose();
     }
 
     public boolean isDebugBox2d() {

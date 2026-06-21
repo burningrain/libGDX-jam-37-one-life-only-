@@ -7,12 +7,7 @@ varying vec2 v_texCoords;
 
 uniform sampler2D u_texture;
 uniform vec2 u_resolution;
-uniform float u_time;
 
-// Функция генерации белого шума
-float noise(vec2 uv) {
-    return fract(sin(dot(uv, vec2(12.9898, 78.233) + u_time)) * 43758.5453);
-}
 
 // Эффект выпуклого экрана CRT
 vec2 curve(vec2 uv) {
@@ -53,14 +48,6 @@ void main() {
     // 3. Сканлайны (строки развертки)
     float scanline = sin(uv.y * u_resolution.y * 3.141592) * 0.15;
     col.rgb -= scanline;
-
-    // 4. Эффект шума (интенсивность 0.04)
-    float noiseValue = noise(uv) * 0.04;
-    col.rgb += vec3(noiseValue);
-
-    // 5. Эффект мерцания
-    float flicker = 1.0 + sin(u_time * 120.0) * 0.015;
-    col.rgb *= flicker;
 
     // Виньетирование (затемнение по углам)
     float vignette = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
