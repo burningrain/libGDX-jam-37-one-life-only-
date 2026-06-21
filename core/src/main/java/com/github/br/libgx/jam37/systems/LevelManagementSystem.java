@@ -37,13 +37,18 @@ public class LevelManagementSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        // НАСТРОЙКА ДЛЯ САМОГО ПЕРВОГО СТАРТА ПРИЛОЖЕНИЯ
+        this.gameParams = entityFactory.createGameParams();
+        gameParams.isStartScreen = true;
+        gameParams.isCountingDown = false;
+        gameParams.isGameOver = false;
+
         initFirstTime();
     }
 
     private void initFirstTime() {
         getWorld().getSystem(PlayerInputSystem.class).setEnabled(true);
 
-        this.gameParams = entityFactory.createGameParams();
         if (spiderWeb != null) {
             spiderWeb.dispose();
             spiderWeb = null;
@@ -75,30 +80,60 @@ public class LevelManagementSystem extends BaseSystem {
             return;
         }
 
-        // Проверяем условия конца игры и нажатия пробела
-        if (gameParams != null && gameParams.isGameOver) {
+        if (gameParams == null) return;
+
+        // ====================================================
+        // 1. ЛОГИКА СТАРТОВОГО ЭКРАНА (Самый первый запуск игры)
+        // ====================================================
+        if (gameParams.isStartScreen) {
+            // Замораживаем всё, пока игрок не нажмет Пробел на главном меню
+            disableGameplaySystems();
+
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-                needRestart = true;
+                gameParams.isStartScreen = false;
+                gameParams.isCountingDown = true; // Переходим к 3-2-1!
+                gameParams.startTimer = 3.9f;
             }
+            return; // Выходим, чтобы код ниже не мешал
         }
 
-        // Логика уменьшения таймера «3-2-1»
-        if (gameParams != null && gameParams.isCountingDown) {
+        // ====================================================
+        // 2. ЛОГИКА ОБРАТНОГО ОТСЧЕТА (3-2-1)
+        // ====================================================
+        if (gameParams.isCountingDown) {
             gameParams.startTimer -= Gdx.graphics.getDeltaTime();
 
             if (gameParams.startTimer <= 0) {
                 gameParams.isCountingDown = false;
-                // Отсчет завершен! Включаем обратно управление игрока и ИИ паука
-                getWorld().getSystem(PlayerInputSystem.class).setEnabled(true);
-                getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(true);
-                //getWorld().getSystem(PhysicsSystem.class).setEnabled(true);
+                // Поехали! Включаем геймплей
+                enableGameplaySystems();
             } else {
-                // Пока идет отсчет — намертво выключаем физику, ввод игрока и ИИ паука
-                getWorld().getSystem(PlayerInputSystem.class).setEnabled(false);
-                getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(false);
-                //getWorld().getSystem(PhysicsSystem.class).setEnabled(false);
+                disableGameplaySystems();
+            }
+            return;
+        }
+
+        // ====================================================
+        // 3. ЛОГИКА СМЕРТИ И РЕСТАРТА (Обычный Game Over)
+        // ====================================================
+        if (gameParams.isGameOver) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                needRestart = true;
             }
         }
+    }
+
+    // Вынесем включение/выключение систем в удобные методы-помощники
+    private void disableGameplaySystems() {
+        getWorld().getSystem(PlayerInputSystem.class).setEnabled(false);
+        getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(false);
+        //getWorld().getSystem(PhysicsSystem.class).setEnabled(false);
+    }
+
+    private void enableGameplaySystems() {
+        getWorld().getSystem(PlayerInputSystem.class).setEnabled(true);
+        getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(true);
+        //getWorld().getSystem(PhysicsSystem.class).setEnabled(true);
     }
 
     private void executeActualClear() {
@@ -181,7 +216,12 @@ public class LevelManagementSystem extends BaseSystem {
 
         // 5. СБРАСЫВАЕМ ПАРАМЕТРЫ МАТЧА
         if (gameParams != null) {
-            gameParams.reset();
+            gameParams.isStartScreen = false; // Пропускаем титульник
+            gameParams.isGameOver = false;
+            gameParams.isCountingDown = true; // Сразу на отсчет
+            gameParams.startTimer = 3.9f;
+            gameParams.currentPoints = 0;
+            gameParams.currentFliesAmount = 0;
         }
     }
 

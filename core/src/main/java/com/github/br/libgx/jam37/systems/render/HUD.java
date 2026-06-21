@@ -80,6 +80,30 @@ public class HUD {
             }
         }
 
+        // ====================================================
+        // ОТРИСОВКА СТАРТОВОГО ЭКРАНА
+        // ====================================================
+        if (gameParamsComponent.isStartScreen) {
+            pixelFont.getData().setScale(6f);
+            String titleText = "WEB  OF  DEATH";
+            layout.setText(pixelFont, titleText);
+            float titleX = (virtualWidth - layout.width) / 2f;
+            float titleY = virtualHeight / 1.7f - 10f;
+            pixelFont.draw(spriteBatch, titleText, titleX, titleY);
+            pixelFont.getData().setScale(1f);
+
+            // 2. Рисуем мигающую надпись PRESS SPACE TO PLAY чуть ниже
+            if (stateTime % 1.0f < 0.5f) {
+                pixelFont.getData().setScale(2f);
+                String playText = restartText;
+                layout.setText(pixelFont, playText);
+                float playX = (virtualWidth - layout.width) / 2f;
+                float playY = titleY - 100f; // Смещаем ниже названия игры
+                pixelFont.draw(spriteBatch, playText, playX, playY);
+                pixelFont.getData().setScale(1f);
+            }
+        }
+
         if (gameParamsComponent.isCountingDown) {
             pixelFont.getData().setScale(10f); // Делаем цифры ОЧЕНЬ крупными и пиксельными
 
