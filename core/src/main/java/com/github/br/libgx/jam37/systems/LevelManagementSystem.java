@@ -3,6 +3,9 @@ package com.github.br.libgx.jam37.systems;
 import com.artemis.BaseSystem;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.Contact;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.utils.Array;
 import com.github.br.libgx.jam37.EntityFactory;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
@@ -10,6 +13,8 @@ import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Gdx;
+import com.github.br.libgx.jam37.systems.physics.data.ContactData;
+import com.github.br.libgx.jam37.systems.physics.data.WebSegmentData;
 
 public class LevelManagementSystem extends BaseSystem {
 
@@ -19,8 +24,11 @@ public class LevelManagementSystem extends BaseSystem {
     private GameParamsComponent gameParams;
     private float worldHeight;
 
-    // Флаг-маркер: сигнализирует, что на СЛЕДУЮЩЕМ кадре нужно выполнить рестарт
     private boolean needRestart = false;
+    // Флаг, сигнализирующий, что на этом кадре мир чист и пора спавнить объекты
+    private boolean readyToSpawn = false;
+
+    private SpiderWeb spiderWeb;
 
     public LevelManagementSystem(float worldHeight) {
         this.worldHeight = worldHeight;
@@ -35,7 +43,11 @@ public class LevelManagementSystem extends BaseSystem {
         getWorld().getSystem(PlayerInputSystem.class).setEnabled(true);
 
         this.gameParams = entityFactory.createGameParams();
-        SpiderWeb spiderWeb = entityFactory.createWeb(worldHeight);
+        if (spiderWeb != null) {
+            spiderWeb.dispose();
+            spiderWeb = null;
+        }
+        spiderWeb = entityFactory.createWeb(worldHeight);
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
         Vector2 startPos = startSegmentBody.getPosition();
 
@@ -47,24 +59,30 @@ public class LevelManagementSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
-        // 1. Отработка отложенного перезапуска (происходит в самом начале работы системы на новом кадре)
-        if (needRestart) {
-            executeActualRestart();
-            needRestart = false;
-            return; // Пропускаем остаток кадра для этой системы, чтобы мир стабилизировался
+        // ФАЗА 2: Прошлый кадр полностью очистил Artemis и Box2D. Теперь безопасно спавним!
+        if (readyToSpawn) {
+            initFirstTime();
+            readyToSpawn = false;
+            return;
         }
 
-        // 2. Проверяем условия конца игры и нажатия пробела
+        // ФАЗА 1: Игрок нажал пробел — запускаем точечную очистку
+        if (needRestart) {
+            executeActualClear();
+            needRestart = false;
+            readyToSpawn = true; // Разрешаем спавн на СЛЕДУЮЩЕМ кадре
+            return;
+        }
+
+        // Проверяем условия конца игры и нажатия пробела
         if (gameParams != null && gameParams.isGameOver) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-                // Вместо мгновенного тяжелого рестарта с world.process() просто взводим флаг
                 needRestart = true;
             }
         }
     }
 
-    private void executeActualRestart() {
-        // 1. Сначала находим ID глобальных параметров игры, чтобы не стереть очки
+    private void executeActualClear() {
         int gameParamsEntityId = -1;
         com.artemis.utils.IntBag paramsBag = getWorld().getAspectSubscriptionManager()
             .get(com.artemis.Aspect.all(GameParamsComponent.class))
@@ -73,42 +91,82 @@ public class LevelManagementSystem extends BaseSystem {
             gameParamsEntityId = paramsBag.get(0);
         }
 
-        // 2. ЖЕЛЕЗОБЕТОННАЯ ОЧИСТКА BOX2D МИРА
-        // Вместо отложенного слушателя, мы ПРИНУДИТЕЛЬНО уничтожаем физические тела старой паутины,
-        // игрока и паука прямо сейчас, пока их компоненты PhysicsComponent еще живы в мапперах.
+//        if (spiderWeb != null) {
+//            spiderWeb.dispose();
+//            spiderWeb = null;
+//        }
+
+        com.badlogic.gdx.physics.box2d.World box2dWorld = physicsSystem.getBox2dWorld();
+
+        // 1. БЕЗОПАСНЫЙ СБРОС КОНТАКТОВ
+        com.badlogic.gdx.utils.Array<com.badlogic.gdx.physics.box2d.Contact> contacts = box2dWorld.getContactList();
+
+        for (com.badlogic.gdx.physics.box2d.Contact c : contacts) {
+            if (c != null) c.setEnabled(false);
+        }
+
+        // 2. ОТКЛЮЧАЕМ ВСЕ СУСТАВЫ
+        com.badlogic.gdx.utils.Array<com.badlogic.gdx.physics.box2d.Joint> joints = new com.badlogic.gdx.utils.Array<>();
+        box2dWorld.getJoints(joints);
+        for (com.badlogic.gdx.physics.box2d.Joint joint : joints) {
+            if (joint != null) {
+                joint.setUserData(null);
+                box2dWorld.destroyJoint(joint); // Суставы удалять нативно абсолютно безопасно
+            }
+        }
+
+        // 3. СТИРАЕМ USER DATA И ФИЛЬТРЫ (Вместо destroyBody)
+        // Чтобы нативный b2World не падал от двойного удаления, мы НЕ вызываем destroyBody руками.
+        // Мы просто зануляем UserData и выключаем столкновения фикстур (уводим их в категорию 0).
+        // Старые тела физически исчезнут из логики игры, а Artemis-ODB сотрет их в конце кадра.
+        com.badlogic.gdx.utils.Array<Body> allBodies = new com.badlogic.gdx.utils.Array<>();
+        box2dWorld.getBodies(allBodies);
+
+        for (Body body : allBodies) {
+            if (body == null) continue;
+
+            Object userData = body.getUserData();
+            if (userData instanceof com.github.br.libgx.jam37.systems.physics.data.ContactData) {
+                if (userData instanceof WebSegmentData) {
+                    continue;
+                }
+                int bodyEntityId = ((com.github.br.libgx.jam37.systems.physics.data.ContactData) userData).getEntityId();
+
+                if (bodyEntityId != gameParamsEntityId) {
+                    // Полностью изолируем тело от игрового мира
+                    body.setUserData(null);
+                    body.setActive(false); // Выключаем тело из симуляции физики! Оно замирает и не тратит ресурсы
+
+                    // Начисто отключаем фикстуры от любых коллизий
+                    for (Fixture fixture : body.getFixtureList()) {
+                        com.badlogic.gdx.physics.box2d.Filter filter = fixture.getFilterData();
+                        filter.categoryBits = 0; // Никто
+                        filter.maskBits = 0;     // Ни с кем
+                        fixture.setFilterData(filter);
+                    }
+                }
+            }
+        }
+
+        // 4. ОЧИЩАЕМ СУЩНОСТИ В ARTEMIS-ODB
         com.artemis.utils.IntBag allEntities = getWorld().getAspectSubscriptionManager()
             .get(com.artemis.Aspect.all())
             .getEntities();
 
-        com.artemis.ComponentMapper<PhysicsComponent> mPhysics = getWorld().getMapper(PhysicsComponent.class);
-
-        for (int i = 0; i < allEntities.size(); i++) {
+        for (int i = allEntities.size() - 1; i >= 0; i--) {
             int entityId = allEntities.get(i);
-
             if (entityId != gameParamsEntityId) {
-                // Удаляем физическое тело Box2D РУКАМИ до создания новых объектов!
-                if (mPhysics.has(entityId)) {
-                    PhysicsComponent physics = mPhysics.get(entityId);
-                    if (physics != null && physics.body != null) {
-                        physics.body.setUserData(null);
-                        physicsSystem.getBox2dWorld().destroyBody(physics.body);
-                        physics.body = null;
-                    }
-                }
-                // Помечаем сущность на удаление в Artemis
                 getWorld().delete(entityId);
             }
         }
 
-        // 3. Сбрасываем параметры матча
+        // 5. СБРАСЫВАЕМ ПАРАМЕТРЫ МАТЧА
         if (gameParams != null) {
             gameParams.isGameOver = false;
             gameParams.currentPoints = 0;
             gameParams.currentFliesAmount = 0;
         }
-
-        // 4. ТЕПЕРЬ физический мир девственно чист!
-        // Спокойно создаем новую паутину, игрока и суставы — никакого наложения не будет.
-        initFirstTime();
     }
+
+
 }

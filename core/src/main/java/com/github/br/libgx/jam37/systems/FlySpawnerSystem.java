@@ -8,6 +8,7 @@ import com.artemis.systems.IntervalSystem;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
+import com.github.br.libgx.jam37.Constants;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.Tags;
 import com.github.br.libgx.jam37.systems.physics.data.WebSegmentData;
@@ -22,7 +23,6 @@ public class FlySpawnerSystem extends IntervalSystem {
     private ComponentMapper<RenderComponent> mRender;
 
     protected EntityFactory entityFactory;
-    private SpiderWeb spiderWeb;
 
     public FlySpawnerSystem() {
         super(Aspect.all(FlyComponent.class), 3);
@@ -30,21 +30,12 @@ public class FlySpawnerSystem extends IntervalSystem {
 
     @Override
     protected void processSystem() {
-        // 1. Лениво забираем ссылку на объект паутины из ECS
-        if (spiderWeb == null) {
-            TagManager tagManager = world.getSystem(TagManager.class);
-            if (tagManager.isRegistered(Tags.WEB)) {
-                int webId = tagManager.getEntityId(Tags.WEB);
-                RenderComponent webRender = mRender.get(webId);
-                if (webRender != null) spiderWeb = (SpiderWeb) webRender.renderer;
-            }
-        }
-
-        // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА: Если паутины в мире прямо сейчас нет,
-        // просто пропускаем этот интервальный тик спавна
-        if (spiderWeb == null) {
+        int webId = getWorld().getSystem(TagManager.class).getEntityId(Tags.WEB);
+        if (Constants.EMPTY_ID == webId) {
             return;
         }
+        RenderComponent webRender = mRender.get(webId);
+        SpiderWeb  spiderWeb = (SpiderWeb) webRender.renderer;
 
         IntBag actives = getEntityIds();
         int currentFlyCount = actives.size();

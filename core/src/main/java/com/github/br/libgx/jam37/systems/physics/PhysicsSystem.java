@@ -85,12 +85,7 @@ public class PhysicsSystem extends BaseSystem implements EntitySubscription.Subs
             int entityId = targetsToDelete.get(i);
 
             // 1. Сначала безопасно удаляем тело из Box2D, пока компонент еще на месте
-            PhysicsComponent physics = mPhysics.get(entityId);
-            if (physics != null && physics.body != null) {
-                physics.body.setUserData(null);
-                world.destroyBody(physics.body);
-                physics.body = null;
-            }
+            destroyPhysicsBody(entityId);
 
             // 2. И только теперь полностью удаляем саму сущность из ECS мира
             getWorld().delete(entityId);

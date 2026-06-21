@@ -117,6 +117,7 @@ public class EntityFactory extends BaseSystem {
         jointDef.upperTranslation = halfLength;
 
         // Сохраняем сустав в массив размера 1 внутри PhysicsComponent
+        physicsComp.body = flyBody;
         physicsComp.crawlJoints = new PrismaticJoint[1];
         physicsComp.crawlJoints[0] = (PrismaticJoint) box2dWorld.createJoint(jointDef);
 
