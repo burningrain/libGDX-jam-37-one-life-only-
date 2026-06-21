@@ -43,6 +43,7 @@ public class RenderSystem extends BaseSystem {
     private boolean isDebugBox2d = false;
 
     private ShaderProgram crtShader;
+    private float time = 0f;
 
     public RenderSystem(
         World box2dWorld,
@@ -159,6 +160,7 @@ public class RenderSystem extends BaseSystem {
         // ИСПРАВЛЕНО: Рисуем текстуру, растягивая её строго на виртуальные МЕТРЫ вьюпорта.
         // FitViewport сам отмасштабирует эти метры до физических пикселей монитора игрока.
         crtShader.setUniformf("u_resolution", virtualWidth, virtualHeight);
+        crtShader.setUniformf("u_time", time);
         spriteBatch.draw(
             fbo.getColorBufferTexture(),
             0, 0,
