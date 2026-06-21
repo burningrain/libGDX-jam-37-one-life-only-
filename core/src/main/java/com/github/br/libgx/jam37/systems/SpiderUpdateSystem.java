@@ -10,10 +10,12 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 import com.github.br.libgx.jam37.Constants;
+import com.github.br.libgx.jam37.EntityFactory;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.Tags;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.components.enemy.SpiderComponent;
 
 public class SpiderUpdateSystem extends IteratingSystem {
@@ -88,7 +90,10 @@ public class SpiderUpdateSystem extends IteratingSystem {
         // ====================================================
         // 2. ИСПРАВЛЕНО: ШАГ ПАУКА С НАСТРАИВАЕМОЙ АМПЛИТУДОЙ
         // ====================================================
-        spider.speed = 2.5f; // Физическая скорость бега паука
+        GameParamsComponent gameParams = getWorld().getSystem(EntityFactory.class).getGameParamsComponent();
+        int score = gameParams.currentPoints;
+        float baseSpeed = 2.0f; // Физическая скорость бега паука
+        spider.speed = baseSpeed + (score * 0.15f);
         float currentSpeed = prosomaBody.getLinearVelocity().len();
 
         // Частота замахов (фиксированная, неторопливая и плавная)

@@ -2,7 +2,6 @@ package com.github.br.libgx.jam37.systems;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.BaseEntitySystem;
 import com.artemis.managers.TagManager;
 import com.artemis.systems.IntervalSystem;
 import com.artemis.utils.IntBag;
@@ -65,7 +64,7 @@ public class FlySpawnerSystem extends IntervalSystem {
 
         if (isSegmentFree) {
             webSegmentData.isFreeForFly = false;
-            entityFactory.createFlySegment(randomSegmentBody);
+            entityFactory.createFly(randomSegmentBody);
             gameParamsComponent.currentFliesAmount++;
         }
 

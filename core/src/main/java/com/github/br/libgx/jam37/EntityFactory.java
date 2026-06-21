@@ -50,7 +50,7 @@ public class EntityFactory extends BaseSystem {
         return gameParamsComponent;
     }
 
-    public void createFlySegment(Body webSegment) {
+    public void createFly(Body webSegment) {
         com.artemis.World artemisWorld = getWorld();
         int entityId = artemisWorld.create();
 
@@ -418,7 +418,8 @@ public class EntityFactory extends BaseSystem {
         RenderComponent renderComp = artemisWorld.getMapper(RenderComponent.class).create(entityId);
         renderComp.layer = 2;
         renderComp.renderer = new SpiderRenderer(spiderComp);
-    }
 
+        artemisWorld.getSystem(TagManager.class).register(Tags.SPIDER, entityId);
+    }
 
 }

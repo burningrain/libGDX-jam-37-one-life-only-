@@ -5,7 +5,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 
 public class SpiderComponent extends Component {
-    public float speed = 1.8f;
+
+    public float speed = 1.5f;
 
     // Физические кости
     public Body prosoma;

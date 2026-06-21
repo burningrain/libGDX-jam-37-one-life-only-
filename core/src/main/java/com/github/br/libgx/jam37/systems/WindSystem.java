@@ -5,9 +5,11 @@ import com.artemis.ComponentMapper;
 import com.artemis.managers.TagManager;
 import com.badlogic.gdx.Gdx;
 import com.github.br.libgx.jam37.Constants;
+import com.github.br.libgx.jam37.EntityFactory;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.Tags;
 import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 
 public class WindSystem extends BaseSystem {
 
@@ -26,10 +28,23 @@ public class WindSystem extends BaseSystem {
         SpiderWeb spiderWeb = (SpiderWeb) renderComponent.renderer;
 
         // Симуляция ветра (применяем силы до шага физики)
-        float windForce = (float) Math.sin(time * 2.5f) * 1.4f; // float windForce = (float) Math.sin(time * 4.5f) * 3.4f;
-        spiderWeb.applyWind(windForce, 0);
+        GameParamsComponent gameParams = getWorld().getSystem(EntityFactory.class).getGameParamsComponent();
+        int score = gameParams.currentPoints;
 
+        // Базовая сила ветра (например, 5.0f) увеличивается на 10% за каждое очко
+        float baseWindForce = 0.0f;
+        float currentWindForce = baseWindForce + (score * 0.5f);
+
+        // Накапливаем время для синусоиды покачивания ветра
         time += Gdx.graphics.getDeltaTime();
+
+        // Пример расчета силы ветра с учетом синуса и прогрессии очков:
+        float windX = (float) Math.sin(time * 2.0f) * currentWindForce;
+
+        // Симуляция ветра (применяем силы до шага физики)
+        spiderWeb.applyWind(windX, 0);
+
+
     }
 
 }

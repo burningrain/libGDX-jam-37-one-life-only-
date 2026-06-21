@@ -4,6 +4,7 @@ public interface Tags {
 
     String PLAYER = "PLAYER";
     String WEB = "WEB";
+    String SPIDER = "SPIDER";
 
     String GAME_PARAMS = "GAME_PARAMS";
 
