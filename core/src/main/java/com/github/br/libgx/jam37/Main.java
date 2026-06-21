@@ -9,10 +9,7 @@ import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
-import com.github.br.libgx.jam37.systems.FlySpawnerSystem;
-import com.github.br.libgx.jam37.systems.PlayerInputSystem;
-import com.github.br.libgx.jam37.systems.SpiderUpdateSystem;
-import com.github.br.libgx.jam37.systems.WindSystem;
+import com.github.br.libgx.jam37.systems.*;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 import com.github.br.libgx.jam37.systems.physics.contact.WebContactListener;
 import com.github.br.libgx.jam37.systems.render.RenderSystem;
@@ -46,12 +43,13 @@ public class Main implements ApplicationListener {
             .with(new WindSystem()) // Колышет нити, вызывая applyForce
 
             // ТРЕТИЙ ЭТАП: Симуляция физического мира
+            .with(new WebContactListener())
             .with(physicsSystem) // Делает world.step()
             .with(new FlySpawnerSystem())
             // фабрики
-            .with(new WebContactListener())
             .with(new EntityFactory())
             // ЧЕТВЕРТЫЙ ЭТАП: Отрисовка (Забирает уже посчитанные на этом кадре координаты Box2D)
+            .with(new FlyAnimationSystem())
             .with(new RenderSystem(
                 physicsSystem.getBox2dWorld(),
                 viewport,

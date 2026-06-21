@@ -2,17 +2,21 @@ package com.github.br.libgx.jam37.systems.physics.contact;
 
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
-import com.artemis.managers.TagManager;
 import com.badlogic.gdx.physics.box2d.*;
-import com.github.br.libgx.jam37.Constants;
-import com.github.br.libgx.jam37.Tags;
+import com.github.br.libgx.jam37.EntityFactory;
+import com.github.br.libgx.jam37.components.DeleteIntentComponent;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
+import com.github.br.libgx.jam37.components.enemy.FlyComponent;
+import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.physics.data.*;
 
 public class WebContactListener extends BaseSystem implements ContactListener {
 
+    private ComponentMapper<DeleteIntentComponent> mDelete;
+
     private ComponentMapper<PlayerComponent> mPlayer;
+    private ComponentMapper<FlyComponent> flyMapper;
     private ComponentMapper<PhysicsComponent> mPhysics;
 
     // ресолверы контактов
@@ -39,6 +43,10 @@ public class WebContactListener extends BaseSystem implements ContactListener {
     }
 
     public PhysicsContactResolver<? extends ContactData> getPhysicsContact(ContactData data) {
+        if (data != null && data.isDeleted()) {
+            return emptyContactResolver;
+        }
+
         if (data instanceof WebSegmentData) {
             return webSegmentContactResolver;
         }
@@ -168,7 +176,20 @@ public class WebContactListener extends BaseSystem implements ContactListener {
 
         @Override
         public void beginContact(Contact contact, FlyData myContact, Body myBody, Body object, ContactData objectContact) {
+            if (objectContact instanceof PlayerHeadData) {
+                EntityFactory entityFactory = getWorld().getSystem(EntityFactory.class);
+                GameParamsComponent gameParamsComponent = entityFactory.getGameParamsComponent();
+                gameParamsComponent.currentPoints += myContact.points;
 
+                // удаляем сущность
+                int flyEntityId = myContact.getEntityId();
+                FlyComponent flyComponent = flyMapper.get(flyEntityId);
+                WebSegmentData userData = (WebSegmentData) flyComponent.attachedWebSegment.getUserData(); // flyComponent == null
+                userData.isFreeForFly = true;
+
+                mDelete.create(flyEntityId);
+                myContact.isDeleted = true;
+            }
         }
 
         @Override

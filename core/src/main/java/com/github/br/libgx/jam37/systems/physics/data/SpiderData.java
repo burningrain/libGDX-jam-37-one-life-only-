@@ -3,6 +3,7 @@ package com.github.br.libgx.jam37.systems.physics.data;
 public class SpiderData implements ContactData {
 
     public int entityId;
+    public boolean isDeleted;
 
     public SpiderData(int entityId) {
         this.entityId = entityId;
@@ -11,6 +12,11 @@ public class SpiderData implements ContactData {
     @Override
     public int getEntityId() {
         return entityId;
+    }
+
+    @Override
+    public boolean isDeleted() {
+        return isDeleted;
     }
 
 }

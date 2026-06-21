@@ -27,7 +27,7 @@ public class FlyRenderer implements Renderable {
         // 1. Рисуем мягкое размытое свечение (Filled круг)
         shapeRenderer.set(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(auraColor);
-        shapeRenderer.circle(pos.x, pos.y, auraRadius, 10);
+        shapeRenderer.circle(pos.x, pos.y, auraRadius, 8);
 
         // 2. Рисуем твердое пиксельное ядро мухи
         shapeRenderer.setColor(coreColor);

@@ -5,10 +5,8 @@ import com.artemis.Component;
 public class GameParamsComponent extends Component {
 
     public int maxFliesOnWeb = 4;
-    public int currentFliesAmount;
+    public int currentFliesAmount = 0;
 
-    public int pointsReward = 1; // Сколько очков дадут за сбор светлячка
-
-    public int currentPlayerPoints = 0;
+    public int currentPoints = 0;
 
 }

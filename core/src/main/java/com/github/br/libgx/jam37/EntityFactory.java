@@ -75,7 +75,7 @@ public class EntityFactory extends BaseSystem {
         Body flyBody = box2dWorld.createBody(bDef);
 
         // Намертво привязываем ID сущности для систем коллизий
-        flyBody.setUserData(new FlyData(entityId));
+        flyBody.setUserData(new FlyData(entityId, 1));
 
         CircleShape shape = new CircleShape();
         shape.setRadius(0.12f);

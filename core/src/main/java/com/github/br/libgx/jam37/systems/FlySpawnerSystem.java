@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.BaseEntitySystem;
 import com.artemis.managers.TagManager;
+import com.artemis.systems.IntervalSystem;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
@@ -15,7 +16,7 @@ import com.github.br.libgx.jam37.components.enemy.FlyComponent;
 import com.github.br.libgx.jam37.EntityFactory;
 import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 
-public class FlySpawnerSystem extends BaseEntitySystem {
+public class FlySpawnerSystem extends IntervalSystem {
 
     private ComponentMapper<FlyComponent> mFly;
     private ComponentMapper<RenderComponent> mRender;
@@ -24,7 +25,7 @@ public class FlySpawnerSystem extends BaseEntitySystem {
     private SpiderWeb spiderWeb;
 
     public FlySpawnerSystem() {
-        super(Aspect.all(FlyComponent.class));
+        super(Aspect.all(FlyComponent.class), 3);
     }
 
     @Override
@@ -39,18 +40,8 @@ public class FlySpawnerSystem extends BaseEntitySystem {
             }
         }
 
-
-        float dt = world.getDelta();
         IntBag actives = getEntityIds();
         int currentFlyCount = actives.size();
-        int[] ids = actives.getData();
-
-        // применяем эффекты мерцания
-        for (int i = 0; i < currentFlyCount; i++) {
-            int id = ids[i];
-            FlyComponent flyComponent = mFly.get(id);
-            flyComponent.pulseTimer += dt;
-        }
 
         GameParamsComponent gameParamsComponent = entityFactory.getGameParamsComponent();
         if (currentFlyCount == gameParamsComponent.maxFliesOnWeb) {
