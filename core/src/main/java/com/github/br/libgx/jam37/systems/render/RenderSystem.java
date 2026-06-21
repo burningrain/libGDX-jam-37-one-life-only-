@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
 import com.badlogic.gdx.physics.box2d.World;
@@ -40,6 +41,8 @@ public class RenderSystem extends BaseSystem {
     private Box2DDebugRenderer debugRenderer;
     private final World box2dWorld;
     private boolean isDebugBox2d = false;
+
+    private ShaderProgram crtShader;
 
     public RenderSystem(
         World box2dWorld,
@@ -83,6 +86,19 @@ public class RenderSystem extends BaseSystem {
         this.debugRenderer.setDrawAABBs(false);   // Хитбоксы оптимизации (обычно не нужны)
         this.debugRenderer.setDrawInactiveBodies(false);
         this.debugRenderer.setDrawVelocities(false);
+
+        // Инициализация шейдера
+        ShaderProgram.pedantic = true; // Чтобы не падать, если какие-то uniform не используются
+        crtShader = new ShaderProgram(
+            Gdx.files.internal("shaders/crt.vert"),
+            Gdx.files.internal("shaders/crt.frag")
+        );
+
+        if (!crtShader.isCompiled()) {
+            Gdx.app.error("Shader Error", crtShader.getLog());
+        }
+
+        spriteBatch.setShader(crtShader);
     }
 
     @Override
@@ -142,6 +158,7 @@ public class RenderSystem extends BaseSystem {
         spriteBatch.begin();
         // ИСПРАВЛЕНО: Рисуем текстуру, растягивая её строго на виртуальные МЕТРЫ вьюпорта.
         // FitViewport сам отмасштабирует эти метры до физических пикселей монитора игрока.
+        crtShader.setUniformf("u_resolution", virtualWidth, virtualHeight);
         spriteBatch.draw(
             fbo.getColorBufferTexture(),
             0, 0,
