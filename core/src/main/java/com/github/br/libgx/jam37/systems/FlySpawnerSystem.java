@@ -40,6 +40,12 @@ public class FlySpawnerSystem extends IntervalSystem {
             }
         }
 
+        // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА: Если паутины в мире прямо сейчас нет,
+        // просто пропускаем этот интервальный тик спавна
+        if (spiderWeb == null) {
+            return;
+        }
+
         IntBag actives = getEntityIds();
         int currentFlyCount = actives.size();
 

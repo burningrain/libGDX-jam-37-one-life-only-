@@ -4,11 +4,8 @@ import com.artemis.managers.TagManager;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.systems.*;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 import com.github.br.libgx.jam37.systems.physics.contact.WebContactListener;
@@ -46,8 +43,9 @@ public class Main implements ApplicationListener {
             .with(new WebContactListener())
             .with(physicsSystem) // Делает world.step()
             .with(new FlySpawnerSystem())
-            // фабрики
+            // ФАБРИКИ И СИСТЕМЫ УПРАВЛЕНИЯ
             .with(new EntityFactory())
+            .with(new LevelManagementSystem(worldHeight))
             // ЧЕТВЕРТЫЙ ЭТАП: Отрисовка (Забирает уже посчитанные на этом кадре координаты Box2D)
             .with(new FlyAnimationSystem())
             .with(new RenderSystem(
@@ -61,22 +59,7 @@ public class Main implements ApplicationListener {
             ).setDebugBox2d(false))
             .build();
         artemisWorld = new com.artemis.World(config);
-
-        EntityFactory entityFactory = artemisWorld.getSystem(EntityFactory.class);
-
-        GameParamsComponent gameParams = entityFactory.createGameParams();
-
-        SpiderWeb spiderWeb = entityFactory.createWeb(worldHeight);
-        Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
-        Vector2 startPos = startSegmentBody.getPosition();
-
-        entityFactory.createPlayer(5, startPos, spiderWeb);
-
-        Body spawnSegmentBody = spiderWeb.getAllSegments().get(12);
-        entityFactory.createSpider(spawnSegmentBody.getPosition());
     }
-
-
 
     @Override
     public void render() {
@@ -104,4 +87,3 @@ public class Main implements ApplicationListener {
     }
 
 }
-

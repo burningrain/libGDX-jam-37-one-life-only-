@@ -168,10 +168,9 @@ public class PhysicsSystem extends BaseSystem implements EntitySubscription.Subs
 
     private void destroyPhysicsBody(int entityId) {
         PhysicsComponent physics = mPhysics.get(entityId);
-        // Проверяем, что компонент ЕЩЕ существует и тело ЕЩЕ не удалено
+        // Защита: если тело уже удалено вручную при рестарте, метод просто ничего не сделает
         if (physics != null && physics.body != null) {
             physics.body.setUserData(null);
-            // Безопасно, так как removed() отложенных удалений сработает вне world.step()
             world.destroyBody(physics.body);
             physics.body = null;
         }

@@ -279,6 +279,9 @@ public class WebContactListener extends BaseSystem implements ContactListener {
         public void beginContact(Contact contact, SpiderCheliceraeData myContact, Body myBody, Body object, ContactData objectContact) {
             if (objectContact instanceof PlayerHeadData) {
                 getWorld().getSystem(PlayerInputSystem.class).setEnabled(false);
+
+                GameParamsComponent gameParamsComponent = getWorld().getSystem(EntityFactory.class).getGameParamsComponent();
+                gameParamsComponent.isGameOver = true;
             }
         }
 

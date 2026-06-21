@@ -4,6 +4,8 @@ import com.artemis.Component;
 
 public class GameParamsComponent extends Component {
 
+    public boolean isGameOver = false;
+
     public int maxFliesOnWeb = 4;
     public int currentFliesAmount = 0;
 
