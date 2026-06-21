@@ -5,10 +5,12 @@ import com.artemis.Component;
 public class GameParamsComponent extends Component {
 
     public final int maxFliesOnWeb = 4;
+    public final int victoryPoints = 10;
 
     public boolean isStartScreen = false; // Флаг стартового экрана (true только при самом первом запуске приложения)
 
     public boolean isGameOver = false;
+    public boolean isVictory = false;     // Флаг экрана победы
     public int currentFliesAmount = 0;
     public int currentPoints = 0;
 

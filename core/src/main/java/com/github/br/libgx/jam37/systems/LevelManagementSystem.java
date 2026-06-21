@@ -114,6 +114,25 @@ public class LevelManagementSystem extends BaseSystem {
         }
 
         // ====================================================
+        // ШАГ: ПРОВЕРКА УСЛОВИЯ ПОБЕДЫ (Каждый кадр живой игры)
+        // ====================================================
+        if (!gameParams.isGameOver && !gameParams.isVictory && gameParams.currentPoints >= gameParams.victoryPoints) {
+            gameParams.isVictory = true;
+        }
+
+        // ====================================================
+        // ЛОГИКА ЭКРАНА ПОБЕДЫ
+        // ====================================================
+        if (gameParams.isVictory) {
+            disableGameplaySystems(); // Замораживаем мир, празднуем победу!
+
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                needRestart = true; // Перезапуск по пробелу сразу на отсчет 3-2-1
+            }
+            return; // Выходим из метода
+        }
+
+        // ====================================================
         // 3. ЛОГИКА СМЕРТИ И РЕСТАРТА (Обычный Game Over)
         // ====================================================
         if (gameParams.isGameOver) {
@@ -217,6 +236,7 @@ public class LevelManagementSystem extends BaseSystem {
         // 5. СБРАСЫВАЕМ ПАРАМЕТРЫ МАТЧА
         if (gameParams != null) {
             gameParams.isStartScreen = false; // Пропускаем титульник
+            gameParams.isVictory = false;
             gameParams.isGameOver = false;
             gameParams.isCountingDown = true; // Сразу на отсчет
             gameParams.startTimer = 3.9f;

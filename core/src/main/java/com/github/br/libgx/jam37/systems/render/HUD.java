@@ -55,6 +55,9 @@ public class HUD {
 
         pixelFont.draw(spriteBatch, score, hudX, hudY);
 
+        // ====================================================
+        // ОТРИСОВКА ЭКРАНА ПОРАЖЕНИЯ
+        // ====================================================
         if (gameParamsComponent.isGameOver) {
             pixelFont.getData().setScale(8f);
 
@@ -76,6 +79,30 @@ public class HUD {
                 float restartY = (virtualHeight / 1.7f) - 100f; // Смещаем на 100 пикселей ниже GAME OVER
 
                 pixelFont.draw(spriteBatch, restartText, restartX, restartY);
+                pixelFont.getData().setScale(1f);
+            }
+        }
+
+        // ====================================================
+        // ОТРИСОВКА ЭКРАНА ПОБЕДЫ
+        // ====================================================
+        if (gameParamsComponent.isVictory) {
+            // 1. Выводим текст ПОБЕДА
+            pixelFont.getData().setScale(8f);
+            String victoryText = "VICTORY!";
+            layout.setText(pixelFont, victoryText);
+            float x = (virtualWidth - layout.width) / 2f;
+            pixelFont.draw(spriteBatch, victoryText, x, virtualHeight / 1.7f);
+            pixelFont.getData().setScale(1f);
+
+            // 2. Выводим мигающий текст приглашения к новой гонке чуть ниже
+            if (stateTime % 1.0f < 0.5f) {
+                pixelFont.getData().setScale(2f);
+                layout.setText(pixelFont, restartText);
+                float nextX = (virtualWidth - layout.width) / 2f;
+                float nextY = (virtualHeight / 1.7f) - 100f; // Смещаем ниже основного текста
+
+                pixelFont.draw(spriteBatch, restartText, nextX, nextY);
                 pixelFont.getData().setScale(1f);
             }
         }
