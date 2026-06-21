@@ -1,22 +1,30 @@
 package com.github.br.libgx.jam37;
 
 import com.artemis.BaseSystem;
+import com.artemis.ComponentMapper;
 import com.artemis.managers.TagManager;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
+import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
 import com.badlogic.gdx.physics.box2d.joints.WeldJointDef;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 import com.github.br.libgx.jam37.components.RenderComponent;
-import com.github.br.libgx.jam37.components.enemy.SpiderComponent;
-import com.github.br.libgx.jam37.components.enemy.SpiderRenderer;
+import com.github.br.libgx.jam37.components.enemy.*;
 import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 
+import static com.github.br.libgx.jam37.Constants.WORLD_WIDTH;
+
 public class EntityFactory extends BaseSystem {
+
+    private int gameParamsEntityId;
+
+    protected ComponentMapper<GameParamsComponent> gameParamsMapper;
+
     @Override
     protected void processSystem() {
     }
@@ -24,6 +32,112 @@ public class EntityFactory extends BaseSystem {
     @Override
     protected void initialize() {
         setEnabled(false);
+    }
+
+    public GameParamsComponent getGameParamsComponent() {
+        return gameParamsMapper.get(gameParamsEntityId);
+    }
+
+    public GameParamsComponent createGameParams() {
+        com.artemis.World artemisWorld = getWorld();
+        int entityId = artemisWorld.create();
+        gameParamsEntityId = entityId;
+
+        GameParamsComponent gameParamsComponent = artemisWorld.getMapper(GameParamsComponent.class).create(entityId);
+        artemisWorld.getSystem(TagManager.class).register(Tags.GAME_PARAMS, entityId);
+        return gameParamsComponent;
+    }
+
+    public void createFlySegment(Body webSegment) {
+        com.artemis.World artemisWorld = getWorld();
+        int entityId = artemisWorld.create();
+
+        FlyComponent flyComp = artemisWorld.getMapper(FlyComponent.class).create(entityId);
+        flyComp.attachedWebSegment = webSegment;
+
+        // Изначально ставим позицию в центр нити
+        flyComp.pulseTimer = (float) Math.random() * 10f; // Рандомизируем фазу мерцания
+
+        // физический компонент
+        PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
+        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
+        // Берём текущую мировую позицию нити паутины
+        Vector2 spawnPos = webSegment.getPosition();
+        flyComp.attachedWebSegment = webSegment;
+        flyComp.pulseTimer = (float) Math.random() * 10f;
+
+        // 2. СОЗДАЕМ ФИЗИЧЕСКОЕ ТЕЛО МУХИ В BOX2D
+        BodyDef bDef = new BodyDef();
+        bDef.type = BodyDef.BodyType.DynamicBody;
+        bDef.position.set(spawnPos); // Спавним точно в мировой точке нити
+        bDef.linearDamping = 2.0f;
+        Body flyBody = box2dWorld.createBody(bDef);
+
+        // Намертво привязываем ID сущности для систем коллизий
+        flyBody.setUserData(entityId);
+
+        CircleShape shape = new CircleShape();
+        shape.setRadius(0.12f);
+
+        FixtureDef fDef = new FixtureDef();
+        fDef.shape = shape;
+        fDef.density = 0.01f;
+        fDef.isSensor = true;   // Датчик-сенсор
+        flyBody.createFixture(fDef);
+        shape.dispose();
+        flyBody.resetMassData();
+        flyComp.flyBody = flyBody;
+
+        // 3. ПРИВЯЗЫВАЕМ МУХУ К НИТИ ПАУТИНЫ ПРИЗМАТИЧЕСКИМ ДЖОИНТОМ
+        float webAngle = webSegment.getAngle();
+        Vector2 axis = new Vector2((float) Math.cos(webAngle), (float) Math.sin(webAngle)).nor();
+
+        // Извлекаем полудлину нити паутины для лимитов рельс
+        float halfLength = 0.5f; // Дефолт
+        if (webSegment.getFixtureList().size > 0 && webSegment.getFixtureList().first().getShape() instanceof PolygonShape) {
+            PolygonShape poly = (PolygonShape) webSegment.getFixtureList().first().getShape();
+            Vector2 vertex = new Vector2();
+            poly.getVertex(0, vertex);
+            halfLength = Math.abs(vertex.x);
+        }
+
+        // Строим сустав (настройки один в один как у гусеницы)
+        com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef jointDef = new com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef();
+        jointDef.initialize(webSegment, flyBody, spawnPos, axis);
+        jointDef.enableMotor = false; // Мотор мухе не нужен, она сидит на месте
+        jointDef.collideConnected = false;
+
+        // Запираем муху строго в границах этой палочки паутины, чтобы она не уползала
+        jointDef.enableLimit = true;
+        jointDef.lowerTranslation = -halfLength;
+        jointDef.upperTranslation = halfLength;
+
+        // Сохраняем сустав в массив размера 1 внутри PhysicsComponent
+        physicsComp.crawlJoints = new PrismaticJoint[1];
+        physicsComp.crawlJoints[0] = (PrismaticJoint) box2dWorld.createJoint(jointDef);
+
+
+        // Подключаем рендеринг (Слой 1 — на уровне жука)
+        RenderComponent renderComp = artemisWorld.getMapper(RenderComponent.class).create(entityId);
+        renderComp.layer = 1;
+        renderComp.renderer = new FlyRenderer(flyComp);
+    }
+
+    public SpiderWeb createWeb(float worldHeight) {
+        com.artemis.World artemisWorld = getWorld();
+        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
+
+        Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
+        SpiderWeb spiderWeb = new SpiderWeb(box2dWorld, webCenter, 8f, 12, 8, 3);
+
+        int webEntityId = artemisWorld.create();
+        RenderComponent webRender = artemisWorld.getMapper(RenderComponent.class).create(webEntityId);
+        webRender.layer = 0;            // Паутина строго под жуком
+        webRender.renderer = spiderWeb; // Сам объект паутины выступает в роли отрисовщика
+
+        artemisWorld.getSystem(TagManager.class).register(Tags.WEB, webEntityId);
+
+        return spiderWeb;
     }
 
     public void createPlayer(int segmentCount, Vector2 startPos, SpiderWeb spiderWeb) {
@@ -228,8 +342,6 @@ public class EntityFactory extends BaseSystem {
             chelJoint.upperAngle = 0.2f;
             box2dWorld.createJoint(chelJoint);
         }
-        spiderComp.cheliceraLeft = chelicerae[0];
-        spiderComp.cheliceraRight = chelicerae[1];
 
         // Устанавливаем челюсти в компонент
         spiderComp.cheliceraLeft = chelicerae[0];

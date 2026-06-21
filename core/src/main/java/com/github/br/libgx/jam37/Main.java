@@ -14,10 +14,12 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
 import com.github.br.libgx.jam37.components.RenderComponent;
+import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.components.enemy.SpiderComponent;
 import com.github.br.libgx.jam37.components.enemy.SpiderRenderer;
 import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
+import com.github.br.libgx.jam37.systems.FlySpawnerSystem;
 import com.github.br.libgx.jam37.systems.PlayerInputSystem;
 import com.github.br.libgx.jam37.systems.SpiderUpdateSystem;
 import com.github.br.libgx.jam37.systems.WindSystem;
@@ -57,9 +59,10 @@ public class Main implements ApplicationListener {
 
             // ТРЕТИЙ ЭТАП: Симуляция физического мира
             .with(physicsSystem) // Делает world.step()
+            .with(new FlySpawnerSystem())
+            // фабрики
             .with(new WebContactListener())
             .with(new EntityFactory())
-
             // ЧЕТВЕРТЫЙ ЭТАП: Отрисовка (Забирает уже посчитанные на этом кадре координаты Box2D)
             .with(new RenderSystem(
                 physicsSystem.getBox2dWorld(),
@@ -73,32 +76,21 @@ public class Main implements ApplicationListener {
             .build();
         artemisWorld = new com.artemis.World(config);
 
-        SpiderWeb spiderWeb = createWeb(worldHeight);
+        EntityFactory entityFactory = artemisWorld.getSystem(EntityFactory.class);
+
+        GameParamsComponent gameParams = entityFactory.createGameParams();
+
+        SpiderWeb spiderWeb = entityFactory.createWeb(worldHeight);
         Body startSegmentBody = spiderWeb.getRadialStartSegments().first();
         Vector2 startPos = startSegmentBody.getPosition();
 
-        EntityFactory entityFactory = artemisWorld.getSystem(EntityFactory.class);
         entityFactory.createPlayer(5, startPos, spiderWeb);
 
         Body spawnSegmentBody = spiderWeb.getAllSegments().get(12);
         entityFactory.createSpider(spawnSegmentBody.getPosition());
     }
 
-    private SpiderWeb createWeb(float worldHeight) {
-        World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
 
-        Vector2 webCenter = new Vector2(WORLD_WIDTH / 2f, worldHeight / 2f);
-        SpiderWeb spiderWeb = new SpiderWeb(box2dWorld, webCenter, 8f, 12, 8, 3);
-
-        int webEntityId = artemisWorld.create();
-        RenderComponent webRender = artemisWorld.getMapper(RenderComponent.class).create(webEntityId);
-        webRender.layer = 0;            // Паутина строго под жуком
-        webRender.renderer = spiderWeb; // Сам объект паутины выступает в роли отрисовщика
-
-        artemisWorld.getSystem(TagManager.class).register(Tags.WEB, webEntityId);
-
-        return spiderWeb;
-    }
 
     @Override
     public void render() {
