@@ -91,7 +91,7 @@ public class SpiderUpdateSystem extends IteratingSystem {
         float currentSpeed = prosomaBody.getLinearVelocity().len();
 
         // Частота замахов (фиксированная, неторопливая и плавная)
-        float stepFrequency = spider.speed * 3f;
+        float stepFrequency = spider.speed * 3.5f;
 
         for (int i = 0; i < 8; i++) {
             spider.legTimers[i] += dt;
