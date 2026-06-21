@@ -45,16 +45,20 @@ public class FlySpawnerSystem extends BaseEntitySystem {
         int currentFlyCount = actives.size();
         int[] ids = actives.getData();
 
+        // применяем эффекты мерцания
+        for (int i = 0; i < currentFlyCount; i++) {
+            int id = ids[i];
+            FlyComponent flyComponent = mFly.get(id);
+            flyComponent.pulseTimer += dt;
+        }
+
         GameParamsComponent gameParamsComponent = entityFactory.getGameParamsComponent();
         if (currentFlyCount == gameParamsComponent.maxFliesOnWeb) {
             return;
         }
 
-        // ====================================================
-        // ЭТАП 1: СИНХРОНИЗАЦИЯ ПОЗИЦИЙ С ЖИВОЙ ПАУТИНОЙ
-        // ====================================================
+        // спавним новых светляков
         Array<Body> allSegments = spiderWeb.getAllSegments();
-
         // Выбираем случайный сегмент паутины для потенциального спавна
         int randomIndex = (int) (Math.random() * allSegments.size);
 
@@ -63,7 +67,7 @@ public class FlySpawnerSystem extends BaseEntitySystem {
         WebSegmentData webSegmentData = null;
         boolean isSegmentFree = false;
         int attempt = 0;
-        while(attempt < allSegments.size && !isSegmentFree) {
+        while (attempt < allSegments.size && !isSegmentFree) {
             randomSegmentBody = allSegments.get(randomIndex);
 
             webSegmentData = (WebSegmentData) randomSegmentBody.getUserData();

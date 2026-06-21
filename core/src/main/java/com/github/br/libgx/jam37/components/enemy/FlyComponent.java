@@ -11,5 +11,4 @@ public class FlyComponent extends Component {
     public Body attachedWebSegment; // К какой именно нитке прилипла муха
     public float pulseTimer = 0f; // Для анимации мерцания светляка
 
-
 }

@@ -9,4 +9,6 @@ public class GameParamsComponent extends Component {
 
     public int pointsReward = 1; // Сколько очков дадут за сбор светлячка
 
+    public int currentPlayerPoints = 0;
+
 }
