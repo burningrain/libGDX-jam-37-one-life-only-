@@ -1,6 +1,7 @@
 package com.github.br.libgx.jam37.systems;
 
 import com.artemis.BaseSystem;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.Contact;
@@ -53,7 +54,7 @@ public class LevelManagementSystem extends BaseSystem {
 
         entityFactory.createPlayer(5, startPos, spiderWeb);
 
-        Body spawnSegmentBody = spiderWeb.getAllSegments().get(12);
+        Body spawnSegmentBody = spiderWeb.getAllSegments().get(62);
         entityFactory.createSpider(spawnSegmentBody.getPosition());
     }
 
@@ -78,6 +79,24 @@ public class LevelManagementSystem extends BaseSystem {
         if (gameParams != null && gameParams.isGameOver) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
                 needRestart = true;
+            }
+        }
+
+        // Логика уменьшения таймера «3-2-1»
+        if (gameParams != null && gameParams.isCountingDown) {
+            gameParams.startTimer -= Gdx.graphics.getDeltaTime();
+
+            if (gameParams.startTimer <= 0) {
+                gameParams.isCountingDown = false;
+                // Отсчет завершен! Включаем обратно управление игрока и ИИ паука
+                getWorld().getSystem(PlayerInputSystem.class).setEnabled(true);
+                getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(true);
+                //getWorld().getSystem(PhysicsSystem.class).setEnabled(true);
+            } else {
+                // Пока идет отсчет — намертво выключаем физику, ввод игрока и ИИ паука
+                getWorld().getSystem(PlayerInputSystem.class).setEnabled(false);
+                getWorld().getSystem(SpiderUpdateSystem.class).setEnabled(false);
+                //getWorld().getSystem(PhysicsSystem.class).setEnabled(false);
             }
         }
     }
@@ -149,7 +168,7 @@ public class LevelManagementSystem extends BaseSystem {
         }
 
         // 4. ОЧИЩАЕМ СУЩНОСТИ В ARTEMIS-ODB
-        com.artemis.utils.IntBag allEntities = getWorld().getAspectSubscriptionManager()
+        IntBag allEntities = getWorld().getAspectSubscriptionManager()
             .get(com.artemis.Aspect.all())
             .getEntities();
 
@@ -162,9 +181,7 @@ public class LevelManagementSystem extends BaseSystem {
 
         // 5. СБРАСЫВАЕМ ПАРАМЕТРЫ МАТЧА
         if (gameParams != null) {
-            gameParams.isGameOver = false;
-            gameParams.currentPoints = 0;
-            gameParams.currentFliesAmount = 0;
+            gameParams.reset();
         }
     }
 

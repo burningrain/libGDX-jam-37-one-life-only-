@@ -80,6 +80,27 @@ public class HUD {
             }
         }
 
+        if (gameParamsComponent.isCountingDown) {
+            pixelFont.getData().setScale(10f); // Делаем цифры ОЧЕНЬ крупными и пиксельными
+
+            String text;
+            int seconds = (int) gameParamsComponent.startTimer;
+
+            if (seconds >= 1) {
+                text = String.valueOf(seconds); // На экране будет "3", "2", "1"
+            } else {
+                text = "GO!"; // Когда таймер меньше 1 секунды — кричим "GO!"
+            }
+
+            // Центрируем текст ровно посередине экрана FBO
+            layout.setText(pixelFont, text);
+            float x = (virtualWidth - layout.width) / 2f;
+            float y = (virtualHeight + layout.height) / 2f; // Идеальный центр с учетом высоты шрифта
+
+            pixelFont.draw(spriteBatch, text, x, y);
+            pixelFont.getData().setScale(1f); // Сбрасываем масштаб обратно
+        }
+
         spriteBatch.end();
     }
 
