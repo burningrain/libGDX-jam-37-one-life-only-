@@ -11,4 +11,6 @@ public interface Constants {
     Color WEB_COLOR = Color.WHITE;
     Color PLAYER_COLOR = Color.GREEN;
 
+    int EMPTY_ID = -1;
+
 }

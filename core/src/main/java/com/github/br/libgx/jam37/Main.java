@@ -6,28 +6,16 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
-import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
-import com.badlogic.gdx.physics.box2d.joints.WeldJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.github.br.libgx.jam37.components.PhysicsComponent;
-import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
-import com.github.br.libgx.jam37.components.RenderComponent;
 import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
-import com.github.br.libgx.jam37.components.enemy.SpiderComponent;
-import com.github.br.libgx.jam37.components.enemy.SpiderRenderer;
-import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
-import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.FlySpawnerSystem;
 import com.github.br.libgx.jam37.systems.PlayerInputSystem;
 import com.github.br.libgx.jam37.systems.SpiderUpdateSystem;
 import com.github.br.libgx.jam37.systems.WindSystem;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
-import com.github.br.libgx.jam37.systems.physics.WebContactListener;
+import com.github.br.libgx.jam37.systems.physics.contact.WebContactListener;
 import com.github.br.libgx.jam37.systems.render.RenderSystem;
-
-import static com.github.br.libgx.jam37.Constants.WORLD_WIDTH;
 
 public class Main implements ApplicationListener {
 

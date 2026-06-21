@@ -3,17 +3,15 @@ package com.github.br.libgx.jam37.systems.physics;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
-import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.components.PrismaticRebindIntent;
-import com.github.br.libgx.jam37.systems.render.RenderSystem;
+import com.github.br.libgx.jam37.systems.physics.contact.WebContactListener;
 
 public class PhysicsSystem extends BaseSystem {
 

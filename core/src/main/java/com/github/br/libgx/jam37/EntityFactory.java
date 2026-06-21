@@ -16,6 +16,7 @@ import com.github.br.libgx.jam37.components.enemy.*;
 import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
+import com.github.br.libgx.jam37.systems.physics.data.*;
 
 import static com.github.br.libgx.jam37.Constants.WORLD_WIDTH;
 
@@ -74,7 +75,7 @@ public class EntityFactory extends BaseSystem {
         Body flyBody = box2dWorld.createBody(bDef);
 
         // Намертво привязываем ID сущности для систем коллизий
-        flyBody.setUserData(entityId);
+        flyBody.setUserData(new FlyData(entityId));
 
         CircleShape shape = new CircleShape();
         shape.setRadius(0.12f);
@@ -158,7 +159,12 @@ public class EntityFactory extends BaseSystem {
             pDef.linearDamping = 1.0f;
 
             Body segBody = box2dWorld.createBody(pDef);
-            segBody.setUserData(entityId);
+            if (i == 0 || i == 1) {
+                segBody.setUserData(new PlayerHeadData(entityId));
+            } else {
+                segBody.setUserData(new PlayerData(entityId));
+            }
+
 
             CircleShape playerShape = new CircleShape();
             playerShape.setRadius(0.20f - (i * 0.03f));
@@ -251,6 +257,7 @@ public class EntityFactory extends BaseSystem {
         PhysicsComponent physicsComp = artemisWorld.getMapper(PhysicsComponent.class).create(entityId);
         World box2dWorld = artemisWorld.getSystem(PhysicsSystem.class).getBox2dWorld();
 
+        SpiderData spiderData = new SpiderData(entityId);
         // 1. СОЗДАЕМ ГОЛОВОГРУДЬ (Центральный узел)
         BodyDef prosomaDef = new BodyDef();
         prosomaDef.type = BodyDef.BodyType.DynamicBody;
@@ -258,7 +265,7 @@ public class EntityFactory extends BaseSystem {
         prosomaDef.linearDamping = 15.0f;
         prosomaDef.angularDamping = 3.0f;
         spiderComp.prosoma = box2dWorld.createBody(prosomaDef);
-        spiderComp.prosoma.setUserData(entityId);
+        spiderComp.prosoma.setUserData(spiderData);
 
         CircleShape prosomaShape = new CircleShape();
         prosomaShape.setRadius(0.35f); // Головогрудь чуть меньше брюшка
@@ -279,7 +286,7 @@ public class EntityFactory extends BaseSystem {
         opisthoDef.linearDamping = 4.0f;
         opisthoDef.angularDamping = 4.0f;
         spiderComp.opisthosoma = box2dWorld.createBody(opisthoDef);
-        spiderComp.opisthosoma.setUserData(entityId);
+        spiderComp.opisthosoma.setUserData(spiderData);
 
         CircleShape opisthoShape = new CircleShape();
         opisthoShape.setRadius(0.55f); // Брюшко крупное, каплевидное
@@ -319,7 +326,7 @@ public class EntityFactory extends BaseSystem {
             chelDef.angularDamping = 5.0f;
 
             Body chelBody = box2dWorld.createBody(chelDef);
-            chelBody.setUserData(entityId);
+            chelBody.setUserData(new SpiderCheliceraeData(entityId));
 
             PolygonShape chelShape = new PolygonShape();
             // Маленькие вытянутые клинья-клешни

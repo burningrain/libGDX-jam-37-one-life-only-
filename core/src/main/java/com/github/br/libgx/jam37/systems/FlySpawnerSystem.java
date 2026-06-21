@@ -9,7 +9,7 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.Tags;
-import com.github.br.libgx.jam37.WebSegmentData;
+import com.github.br.libgx.jam37.systems.physics.data.WebSegmentData;
 import com.github.br.libgx.jam37.components.RenderComponent;
 import com.github.br.libgx.jam37.components.enemy.FlyComponent;
 import com.github.br.libgx.jam37.EntityFactory;

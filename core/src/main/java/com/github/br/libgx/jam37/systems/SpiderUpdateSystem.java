@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.utils.Array;
+import com.github.br.libgx.jam37.Constants;
 import com.github.br.libgx.jam37.SpiderWeb;
 import com.github.br.libgx.jam37.Tags;
 import com.github.br.libgx.jam37.components.PhysicsComponent;
@@ -61,7 +62,7 @@ public class SpiderUpdateSystem extends IteratingSystem {
         boolean isPlayerAlive = false;
         if (tagManager.isRegistered(Tags.PLAYER)) {
             int playerId = tagManager.getEntityId(Tags.PLAYER);
-            if (playerId != -1) {
+            if (playerId != Constants.EMPTY_ID) {
                 PhysicsComponent playerPhys = mPhysics.get(playerId);
                 if (playerPhys != null && playerPhys.body != null) {
                     Vector2 playerPos = playerPhys.body.getPosition();

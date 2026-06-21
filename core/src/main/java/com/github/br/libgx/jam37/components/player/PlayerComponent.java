@@ -12,4 +12,5 @@ public class PlayerComponent extends Component {
 
     // Хранилище живых контактов от слушателя
     public final Array<Body> activeContacts = new Array<>();
+
 }
