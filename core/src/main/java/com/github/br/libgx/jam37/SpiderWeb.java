@@ -5,6 +5,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.DistanceJointDef;
 import com.badlogic.gdx.utils.Array;
+import com.github.br.libgx.jam37.systems.physics.CollisionFilters;
 import com.github.br.libgx.jam37.systems.physics.data.WebSegmentData;
 import com.github.br.libgx.jam37.systems.render.Renderable;
 
@@ -63,6 +64,8 @@ public class SpiderWeb implements Renderable {
         CircleShape centerShape = new CircleShape();
         centerShape.setRadius(0.2f); // Маленькая точка-центр
         FixtureDef fixtureDef = new FixtureDef();
+        fixtureDef.filter.categoryBits = CollisionFilters.CATEGORY_WEB;
+        fixtureDef.filter.maskBits = CollisionFilters.CATEGORY_PLAYER;
         fixtureDef.shape = centerShape;
         fixtureDef.density = 0.2f;   // Вес центральной точки паутины
         centerAnchorBody.createFixture(fixtureDef);
@@ -260,6 +263,8 @@ public class SpiderWeb implements Renderable {
         shape.setAsBox(length / 2f, thickness / 2f);
 
         FixtureDef fDef = new FixtureDef();
+        fDef.filter.categoryBits = CollisionFilters.CATEGORY_WEB;
+        fDef.filter.maskBits = CollisionFilters.CATEGORY_PLAYER;
         fDef.shape = shape;
         fDef.isSensor = true; // Сенсор собирает контакты лапок, не ломая физику движения
         fDef.density = 0.4f;  // Облегченные палочки позволяют суставам эффективнее убирать тряску

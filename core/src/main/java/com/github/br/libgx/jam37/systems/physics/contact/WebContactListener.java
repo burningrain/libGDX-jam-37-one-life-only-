@@ -9,6 +9,7 @@ import com.github.br.libgx.jam37.components.PhysicsComponent;
 import com.github.br.libgx.jam37.components.enemy.FlyComponent;
 import com.github.br.libgx.jam37.components.enemy.GameParamsComponent;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
+import com.github.br.libgx.jam37.systems.PlayerInputSystem;
 import com.github.br.libgx.jam37.systems.physics.data.*;
 
 public class WebContactListener extends BaseSystem implements ContactListener {
@@ -276,7 +277,9 @@ public class WebContactListener extends BaseSystem implements ContactListener {
     public class SpiderCheliceraeContactResolver implements PhysicsContactResolver<SpiderCheliceraeData> {
         @Override
         public void beginContact(Contact contact, SpiderCheliceraeData myContact, Body myBody, Body object, ContactData objectContact) {
-
+            if (objectContact instanceof PlayerHeadData) {
+                getWorld().getSystem(PlayerInputSystem.class).setEnabled(false);
+            }
         }
 
         @Override
@@ -286,12 +289,13 @@ public class WebContactListener extends BaseSystem implements ContactListener {
 
         @Override
         public void preSolve(Contact contact, Manifold oldManifold, SpiderCheliceraeData myContact, Body myBody, Body object, ContactData objectContact) {
-
+            if (objectContact instanceof PlayerHeadData) {
+                contact.setEnabled(false);
+            }
         }
 
         @Override
         public void postSolve(Contact contact, ContactImpulse impulse, SpiderCheliceraeData myContact, Body myBody, Body object, ContactData objectContact) {
-
         }
     }
 

@@ -15,6 +15,7 @@ import com.github.br.libgx.jam37.components.RenderComponent;
 import com.github.br.libgx.jam37.components.enemy.*;
 import com.github.br.libgx.jam37.components.player.CaterpillarRenderer;
 import com.github.br.libgx.jam37.components.player.PlayerComponent;
+import com.github.br.libgx.jam37.systems.physics.CollisionFilters;
 import com.github.br.libgx.jam37.systems.physics.PhysicsSystem;
 import com.github.br.libgx.jam37.systems.physics.data.*;
 
@@ -81,6 +82,8 @@ public class EntityFactory extends BaseSystem {
         shape.setRadius(0.12f);
 
         FixtureDef fDef = new FixtureDef();
+        fDef.filter.categoryBits = CollisionFilters.CATEGORY_COLLECTABLES;
+        fDef.filter.maskBits = (short) (CollisionFilters.CATEGORY_PLAYER);
         fDef.shape = shape;
         fDef.density = 0.01f;
         fDef.isSensor = true;   // Датчик-сенсор
@@ -170,9 +173,16 @@ public class EntityFactory extends BaseSystem {
             playerShape.setRadius(0.20f - (i * 0.03f));
 
             FixtureDef pFixture = new FixtureDef();
+            pFixture.filter.categoryBits = CollisionFilters.CATEGORY_PLAYER; // Я — игрок
+            pFixture.filter.maskBits = (short) (
+                CollisionFilters.CATEGORY_SPIDER_PIECE |
+                CollisionFilters.CATEGORY_COLLECTABLES |
+                    CollisionFilters.CATEGORY_WEB
+            );
+            // Я сталкиваюсь с телом паука, его челюстями и миром
+
             pFixture.shape = playerShape;
             pFixture.density = 0.1f;
-            pFixture.filter.groupIndex = -1;
             pFixture.isSensor = true;
 
             segBody.createFixture(pFixture);
@@ -272,7 +282,7 @@ public class EntityFactory extends BaseSystem {
         FixtureDef prosomaFix = new FixtureDef();
         prosomaFix.shape = prosomaShape;
         prosomaFix.density = 0.1f;
-        prosomaFix.filter.groupIndex = -1; // Не сталкивается со своими частями и игроком
+        prosomaFix.filter.categoryBits = CollisionFilters.CATEGORY_SPIDER_BODY;
         spiderComp.prosoma.createFixture(prosomaFix);
         prosomaShape.dispose();
 
@@ -291,9 +301,9 @@ public class EntityFactory extends BaseSystem {
         CircleShape opisthoShape = new CircleShape();
         opisthoShape.setRadius(0.55f); // Брюшко крупное, каплевидное
         FixtureDef opisthoFix = new FixtureDef();
+        opisthoFix.filter.categoryBits = CollisionFilters.CATEGORY_SPIDER_BODY;
         opisthoFix.shape = opisthoShape;
         opisthoFix.density = 0.1f; // Брюшко тяжелое, дает инерцию
-        opisthoFix.filter.groupIndex = -1;
         spiderComp.opisthosoma.createFixture(opisthoFix);
         opisthoShape.dispose();
 
@@ -332,9 +342,10 @@ public class EntityFactory extends BaseSystem {
             // Маленькие вытянутые клинья-клешни
             chelShape.setAsBox(0.15f, 0.08f, new Vector2(0, 0), 0);
             FixtureDef chelFix = new FixtureDef();
+            chelFix.filter.categoryBits = CollisionFilters.CATEGORY_SPIDER_PIECE; // Я кусок паука
+            chelFix.filter.maskBits = CollisionFilters.CATEGORY_PLAYER;
             chelFix.shape = chelShape;
             chelFix.density = 0.5f;
-            chelFix.filter.groupIndex = -1;
             chelBody.createFixture(chelFix);
             chelShape.dispose();
             chelicerae[i] = chelBody;
